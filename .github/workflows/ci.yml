@@ -26,7 +26,7 @@ jobs:
           node tests/visual-surface-shaders.mjs
       - name: Static build smoke (game-core is browser-safe)
         working-directory: Playable
-        run: node -e "import('./public/game-core.mjs').then(m=>{const g=m.createGameCore({clock:{now:()=>0,monotonic:()=>0}});const s=g.handle('GET','/api/state');if(!s.missions.length)process.exit(1);console.log('missions',s.missions.length)})"
+        run: node tests/static-smoke.mjs
 
   geo:
     name: Geo dataset tests
