@@ -22,3 +22,7 @@ Full license text: assets/models/kenney-cars/LICENSE-kenney-car-kit.txt. Models 
 Three.js r180 addons (EffectComposer, RenderPass, SSAOPass, UnrealBloomPass, OutputPass, shaders, SimplexNoise, SkeletonUtils,
 DRACOLoader) in vendor/addons — MIT, same license file as vendor/THREE-LICENSE.txt. Bare `three` imports were rewritten to the
 local three.module.js so the game keeps working offline and in Node tests.
+
+# Map library
+
+Leaflet 1.9.4 (BSD-2-Clause) in vendor/leaflet with its LICENSE. Raster tiles come from tile.openstreetmap.org at runtime under the OSM tile usage policy; data © OpenStreetMap contributors, ODbL.

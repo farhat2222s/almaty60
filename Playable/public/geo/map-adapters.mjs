@@ -1,10 +1,25 @@
 import {createGeoReference,validateWGS84} from './georef.mjs';
+// Leaflet touches window/document on load, so the live providers are imported lazily (Node tests import this file).
+const liveProviders=()=>import('./live-map.mjs');
 
 export const MAP_PROVIDERS=Object.freeze([
   {id:'osm-local',name:'Географическая схема OSM',requiresKey:false,network:false},
+  {id:'osm-tiles',name:'OpenStreetMap · онлайн карта',requiresKey:false,network:true},
   {id:'2gis',name:'2ГИС · интерактивная карта',requiresKey:true,network:true},
-  {id:'google',name:'Google Maps',requiresKey:true,network:true}
+  {id:'google',name:'Google Maps',requiresKey:true,network:true},
+  {id:'yandex',name:'Яндекс Карты',requiresKey:true,network:true}
 ]);
+export const KEY_LINKS={'2gis':'https://platform.2gis.ru/',google:'https://console.cloud.google.com/google/maps-apis/',yandex:'https://developer.tech.yandex.ru/services/'};
+export const PROVIDER_NAMES={'2gis':'2ГИС',google:'Google Maps',yandex:'Яндекс Карты','osm-tiles':'OpenStreetMap','osm-local':'схема OSM'};
+/** Shown instead of a commercial map until the owner supplies a key; the SDK is never loaded without one. */
+export function createNeedsKeyCard(container,{provider,onConfigure,onStatus}={}){
+  const name=PROVIDER_NAMES[provider]||provider;const card=document.createElement('div');Object.assign(card.style,{display:'grid',placeContent:'center',gap:'12px',minHeight:'220px',padding:'24px',background:'#102138',color:'#e8f2fb',font:'14px system-ui',textAlign:'center'});
+  const title=document.createElement('strong');title.textContent=`${name} ещё не подключены`;const description=document.createElement('p');description.textContent=`Нужен ваш ключ API. Пока доступны схема OSM без сети и онлайн-карта OpenStreetMap.`;
+  const link=document.createElement('a');link.textContent=`Получить ключ ${name}`;link.href=KEY_LINKS[provider]||'#';link.target='_blank';link.rel='noopener noreferrer';link.style.color='#55dfc9';card.append(title,description,link);
+  if(onConfigure){const button=document.createElement('button');button.className='primary small';button.textContent='Ввести ключ';button.onclick=onConfigure;card.append(button);}
+  container.replaceChildren(card);onStatus?.({state:'needs-key',provider});
+  return {provider,state:'needs-key',fit(){},setPlayerWGS84(){},invalidate(){},destroy(){card.remove();}};
+}
 export const MAP_ATTRIBUTION='© OpenStreetMap contributors · ODbL';
 function checkedCollection(collection){
   if(collection?.type!=='FeatureCollection'||!Array.isArray(collection.features))throw new TypeError('Expected WGS84 FeatureCollection');
@@ -102,16 +117,19 @@ export async function createGoogleMap(container,{apiKey,origin,bbox,collection,m
 }
 
 /** Keys are supplied by the caller's settings UI; they are never hardcoded or logged here. */
-export async function createMapAdapter(provider,container,options){
+export async function createMapAdapter(provider,container,options={}){
   if(provider==='osm-local')return createOfflineMap(container,options);
+  if(provider==='osm-tiles')return (await liveProviders()).createLeafletMap(container,{center:options.origin,zoom:16,bbox:options.bbox,collection:options.collection,player:options.player,brands:options.brands,onBrandSelect:options.onBrandSelect});
+  if(['2gis','google','yandex'].includes(provider)&&providerConfigurationState(provider,options).state==='needs-key')return createNeedsKeyCard(container,{provider,onConfigure:options.onConfigure,onStatus:options.onStatus});
   if(provider==='2gis')return create2GISMap(container,options);
   if(provider==='google')return createGoogleMap(container,options);
+  if(provider==='yandex')return (await liveProviders()).createYandexMap(container,options);
   throw new Error('Для этого провайдера в данном срезе нет настроенной SDK-интеграции.');
 }
 
 export function providerConfigurationState(provider,options={}){
-  if(provider==='osm-local')return {state:'ready',requiresKey:false};
-  if(!['2gis','google'].includes(provider))return {state:'unsupported',requiresKey:false};
+  if(provider==='osm-local'||provider==='osm-tiles')return {state:'ready',requiresKey:false};
+  if(!['2gis','google','yandex'].includes(provider))return {state:'unsupported',requiresKey:false};
   return {state:typeof options.apiKey==='string'&&options.apiKey.trim().length>=10?'configured':'needs-key',requiresKey:true};
 }
 let mapglPromise=null;

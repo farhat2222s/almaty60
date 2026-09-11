@@ -364,3 +364,21 @@ kbd{display:inline-block;font:700 10px inherit;padding:4px 6px;border:1px solid 
 .geo-experience{position:fixed;inset:0;z-index:50;background:#a8c8df}.geo-scene{position:absolute;inset:0;width:100%;height:100%;outline:none}.geo-toolbar{position:absolute;top:20px;left:24px;right:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:15px;text-shadow:0 2px 15px #06223a}.geo-toolbar small{font-size:10px;letter-spacing:3px;font-weight:800}.geo-toolbar h1{font-size:27px;margin-top:6px}.geo-toolbar button{background:#0c2336de;border:1px solid #ffffff30;padding:12px 17px}.geo-caption{position:absolute;top:110px;left:24px;width:275px;padding:16px}.geo-caption b{font-size:13px}.geo-caption p{font-size:11px;line-height:1.5;color:#bacee0;margin:8px 0}.geo-caption small{font-size:10px;color:#65ded8;line-height:1.5;display:block}.geo-map{position:absolute;right:24px;bottom:48px;width:340px;overflow:hidden}.geo-map-head{display:flex;align-items:center;gap:8px;padding:12px;font-size:12px}.geo-map-head select{background:#142e46;color:white;border:1px solid var(--line);border-radius:5px;min-width:0;font-size:11px;padding:6px;flex:1}.geo-map-head button{font-size:22px;padding:0 6px}.geo-map-body{height:280px}.geo-map-status{font-size:10px;padding:8px 12px;color:#94b6cf}.geo-map-collapsed .geo-map-body,.geo-map-collapsed .geo-map-status{display:none}.geo-hint{position:absolute;bottom:45px;left:24px;padding:11px 16px;border-radius:9px;background:#0c2336d9;font-size:11px;color:#dcebf5}.geo-pad{position:absolute;bottom:80px;left:24px;display:none;grid-template-columns:repeat(3,46px);gap:5px}.geo-pad button{width:46px;height:46px;border-radius:12px;background:#0c2336dd;color:white;border:1px solid #ffffff30;font-size:19px;touch-action:none}.geo-pad button:first-child{grid-column:2}.geo-pad button:nth-child(2){grid-column:1}
 @media(pointer:coarse){.geo-pad{display:grid}.geo-hint{display:none}}
 @media(max-width:700px){.geo-entry{top:143px;bottom:auto;right:12px;padding:9px 12px;font-size:8px}.geo-entry b{font-size:11px}.geo-toolbar{top:16px;left:14px;right:14px}.geo-toolbar h1{font-size:21px}.geo-toolbar small{font-size:8px;letter-spacing:2px}.geo-toolbar button{font-size:11px;padding:10px}.geo-caption{top:89px;left:14px;width:210px;padding:12px}.geo-caption p{font-size:10px}.geo-map{right:14px;bottom:44px;width:min(240px,calc(100% - 168px));min-width:150px}.geo-map-body{height:170px}.geo-map-head{flex-wrap:wrap;padding:9px}.geo-map-head b{display:none}.geo-pad{left:14px;bottom:70px;grid-template-columns:repeat(3,42px);gap:3px}.geo-pad button{width:42px;height:42px}.geo-map-status{font-size:9px;padding:6px}.geo-hint{display:none}}
+
+/* Живая карта Алматы (Leaflet) */
+.live-map{width:100%;aspect-ratio:1;max-height:56vh;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#0c1a36;margin:4px 0 14px}
+.leaflet-container{font-family:inherit;background:#0c1a36}
+.leaflet-control-attribution{background:#0c1a36cc!important;color:#8ea2c6!important;font-size:10px!important}
+.leaflet-control-attribution a{color:#4da3ff!important}
+.leaflet-bar a{background:#13254a!important;color:#fff!important;border-color:#22355e!important}
+.al60-pin-wrap{background:none;border:0}
+.al60-pin{display:block;width:34px;height:34px;border-radius:12px 12px 12px 2px;transform:rotate(-45deg);background:var(--pin,#ffc800);box-shadow:0 4px 12px #0008,inset 0 -3px 0 #0003}
+.al60-pin b{display:grid;place-items:center;width:34px;height:34px;transform:rotate(45deg);color:#fff;font-size:18px;font-weight:900;text-shadow:0 1px 2px #0006}
+.al60-player-pin{display:block;width:22px;height:22px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 6px #4da3ff55,0 4px 10px #0008}
+.al60-popup{display:grid;gap:6px;min-width:140px;color:#0a1730;font:13px inherit}
+.al60-popup b{font-weight:800}.al60-popup small{color:#5a6b8c}
+.al60-popup .primary{padding:7px 10px;min-height:30px;font-size:12px;box-shadow:none}
+.leaflet-popup-content-wrapper{border-radius:12px}
+.map-view-tabs{display:flex;gap:6px;margin-bottom:12px}
+.map-view-tabs button{flex:1;padding:9px;border-radius:11px;background:#1a2d55;font-size:12px;font-weight:700;color:#dbe6ff}
+.map-view-tabs button.active{background:var(--yellow);color:var(--dark)}
