@@ -6,6 +6,11 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+#include "Animation/AnimSequence.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Modules/ModuleManager.h"
 
 AAL60HumanoidCharacter::AAL60HumanoidCharacter()
 {
@@ -60,7 +65,8 @@ AAL60HumanoidCharacter::AAL60HumanoidCharacter()
     DarkParts.Add(Part(TEXT("RightTrouser"), RightLeg, FVector(0,0,-29), FVector(20,21,57)));
     AccentParts.Add(Part(TEXT("LeftShoe"), LeftLeg, FVector(8,0,-64), FVector(36,24,15)));
     AccentParts.Add(Part(TEXT("RightShoe"), RightLeg, FVector(8,0,-64), FVector(36,24,15)));
-    Parcel = Part(TEXT("DeliveryParcel"), FigureRoot, FVector(40,0,96), FVector(38,46,35));
+    // The parcel hangs off the capsule so it stays visible when the primitive figure is replaced by a skeletal mesh.
+    Parcel = Part(TEXT("DeliveryParcel"), RootComponent, FVector(40,0,4), FVector(38,46,35));
     AccentParts.Add(Parcel);
     Parcel->SetVisibility(false);
 }
@@ -83,6 +89,54 @@ void AAL60HumanoidCharacter::BeginPlay()
     Apply(DarkParts, FLinearColor(0.025f,0.04f,0.065f));
     Apply(SkinParts, FLinearColor(0.62f,0.36f,0.21f));
     Apply(AccentParts, FLinearColor(1.f,0.72f,0.055f));
+    if (bUseSkeletalHero) TryLoadSkeletalHero();
+}
+
+bool AAL60HumanoidCharacter::TryLoadSkeletalHero()
+{
+    FAssetRegistryModule& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+    TArray<FAssetData> Assets;
+    Registry.Get().GetAssetsByPath(FName(TEXT("/Game/Characters")), Assets, true);
+    USkeletalMesh* Mesh = nullptr;
+    for (const FAssetData& Asset : Assets)
+    {
+        if (Asset.AssetClassPath == USkeletalMesh::StaticClass()->GetClassPathName())
+        {
+            Mesh = Cast<USkeletalMesh>(Asset.GetAsset());
+            if (Mesh) break;
+        }
+    }
+    if (!Mesh) return false;
+    for (const FAssetData& Asset : Assets)
+    {
+        if (Asset.AssetClassPath != UAnimSequence::StaticClass()->GetClassPathName()) continue;
+        const FString Name = Asset.AssetName.ToString();
+        UAnimSequence* Clip = Cast<UAnimSequence>(Asset.GetAsset());
+        if (!Clip) continue;
+        if (Name == TEXT("Idle") || (!IdleClip && Name.Contains(TEXT("Idle")))) IdleClip = Clip;
+        else if (Name == TEXT("Walk") || (!WalkClip && Name.Contains(TEXT("Walk")))) WalkClip = Clip;
+        else if (Name == TEXT("Run") || (!RunClip && Name.Contains(TEXT("Run")))) RunClip = Clip;
+    }
+    USkeletalMeshComponent* Body = GetMesh();
+    Body->SetSkeletalMeshAsset(Mesh);
+    const float Height = FMath::Max(1.f, static_cast<float>(Mesh->GetBounds().BoxExtent.Z) * 2.f);
+    Body->SetRelativeScale3D(FVector(HeroHeightCentimeters / Height));
+    Body->SetRelativeLocation(FVector(0.f, 0.f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+    Body->SetRelativeRotation(FRotator(0.f, HeroMeshYaw, 0.f));
+    Body->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+    Body->SetCastShadow(true);
+    Body->SetVisibility(true, true);
+    FigureRoot->SetVisibility(false, true);
+    bHasSkeletalHero = true;
+    PlayClip(IdleClip);
+    return true;
+}
+
+void AAL60HumanoidCharacter::PlayClip(UAnimSequence* Clip)
+{
+    if (!Clip || Clip == CurrentClip) return;
+    CurrentClip = Clip;
+    GetMesh()->PlayAnimation(Clip, true);
 }
 
 void AAL60HumanoidCharacter::SetCarryingParcel(bool bCarrying)
@@ -95,6 +149,11 @@ void AAL60HumanoidCharacter::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     const float Speed = GetVelocity().Size2D();
+    if (bHasSkeletalHero)
+    {
+        PlayClip(Speed > 520.f && RunClip ? RunClip : Speed > 20.f && WalkClip ? WalkClip : IdleClip);
+        return;
+    }
     const float Blend = FMath::Clamp(Speed / 420.f, 0.f, 1.5f);
     WalkPhase += DeltaSeconds * FMath::Lerp(2.f, 10.f, FMath::Min(Blend, 1.f));
     const float Swing = FMath::Sin(WalkPhase) * 28.f * Blend;

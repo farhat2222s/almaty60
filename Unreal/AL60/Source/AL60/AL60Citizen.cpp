@@ -8,6 +8,7 @@
 AAL60Citizen::AAL60Citizen()
 {
     AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+    bUseSkeletalHero = false;
     GetCharacterMovement()->MaxWalkSpeed = 125.f;
     GetCharacterMovement()->bRunPhysicsWithNoController = true;
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);

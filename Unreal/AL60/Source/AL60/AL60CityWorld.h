@@ -10,6 +10,9 @@ class AAL60Citizen;
 class AAL60PlayerCharacter;
 class AAL60CheckpointActor;
 class UAL60CitySaveGame;
+class USkyAtmosphereComponent;
+class UExponentialHeightFogComponent;
+class UPostProcessComponent;
 
 struct FAL60Landmark
 {
@@ -39,12 +42,18 @@ public:
     int32 GetCompletedQuestCount() const;
     FString GetToast() const { return ToastText; }
     const TArray<FAL60Landmark>& GetLandmarks() const { return Landmarks; }
+    // Physically based sky, height fog and post-process (bloom, AO, exposure). Off = legacy unlit sky sphere.
+    UPROPERTY(EditAnywhere, Category="Rendering") bool bUseSkyAtmosphere = true;
 protected:
     virtual void BeginPlay() override;
 private:
     UPROPERTY() TMap<FString, UInstancedStaticMeshComponent*> Geometry;
     UPROPERTY() UMaterialInterface* PaletteMaterial;
     UPROPERTY() UMaterialInterface* UnlitMaterial;
+    UPROPERTY() UMaterialInterface* PavingMaterial;
+    UPROPERTY() USkyAtmosphereComponent* Atmosphere;
+    UPROPERTY() UExponentialHeightFogComponent* HeightFog;
+    UPROPERTY() UPostProcessComponent* PostProcess;
     UPROPERTY() TArray<AAL60Citizen*> Citizens;
     UPROPERTY() TArray<AAL60CheckpointActor*> BrandGates;
     UPROPERTY() TArray<UStaticMeshComponent*> SearchObjects;

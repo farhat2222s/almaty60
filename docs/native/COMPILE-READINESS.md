@@ -71,3 +71,20 @@ bash Unreal/AL60/Scripts/bootstrap-native.sh
 - Замеры FPS на устройствах.
 - Финальные модели и анимации вместо примитивов.
 - Серверная проверка езды на автомобиле и свободных городских заданий.
+
+## Графика v2 (11 сентября 2026) — по-прежнему без компиляции
+
+На машине автора Unreal Engine установить нельзя (8 ГБ ОЗУ, 18 ГБ свободного места), поэтому изменения ниже прошли только статическую проверку `check-native-static.sh`. Каждая функция имеет откат к прежнему виду, если ассеты не импортированы или флаг выключен.
+
+| Что | Где | Откат |
+|---|---|---|
+| Sky Atmosphere + Exponential Height Fog + Post Process (bloom 0.35, AO 0.6, гистограммная экспозиция, виньетка, насыщенность) | `AL60CityWorld::BuildLighting`, компоненты на акторе города | `bUseSkyAtmosphere=false` возвращает unlit-сферу неба и прежний свет |
+| Солнце как `bAtmosphereSunLight`, SkyLight с real-time capture | там же | на мобильных capture заменяется кубомапой автоматически |
+| Скелетный герой: первый `USkeletalMesh` из `/Game/Characters`, клипы Idle/Walk/Run по имени через AssetRegistry, масштаб до 176 см, `AnimationSingleNode` | `AL60HumanoidCharacter::TryLoadSkeletalHero`, переключение клипов в `Tick` | без ассетов остаётся процедурный манекен; NPC (`AL60Citizen`) всегда манекены |
+| Импорт `casual-character.glb` (Quaternius CC0) и PNG-текстур из `Playable/public/assets` через `AssetImportTask` (Interchange) | `Scripts/bootstrap_arbat.py::import_visual_assets` | ошибки импорта логируются, bootstrap продолжается |
+| Материал плитки Арбата `M_AL60_Paving` с world-aligned UV из `arbat-paving-albedo-v3.png` | bootstrap + `AL60CityWorld::Shape` для групп Promenade/Sidewalk | без текстуры используется палитра |
+| Bloom/AO/автоэкспозиция включены в `DefaultEngine.ini`, `sg.PostProcessQuality` 1 на базовых профилях и 2 на 60-FPS профилях, `r.Mobile.AmbientOcclusion=1` | Config | профили можно вернуть на 0 |
+
+Новая зависимость модуля: `AssetRegistry` в `AL60.Build.cs`.
+
+Что проверить первым на машине с UE: (1) компиляцию `AL60HumanoidCharacter.cpp` — `FAssetData::AssetClassPath` и `USkeletalMeshComponent::SetSkeletalMeshAsset` требуют UE 5.1+; (2) ориентацию импортированного героя, параметр `HeroMeshYaw` (по умолчанию −90°); (3) имена клипов после импорта Interchange, поиск идёт по подстрокам Idle/Walk/Run; (4) производительность AO на телефоне, при просадке вернуть `sg.PostProcessQuality=0`.

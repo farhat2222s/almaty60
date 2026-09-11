@@ -60,5 +60,16 @@
     "static_check_script": "Scripts/check-native-static.sh -> passed",
     "unreal_compilation": "still not run: engine and full Xcode absent on this machine",
     "top_remaining_risk": "legacy BindAxis/BindAction input path on UE 5.8; migrate to EnhancedInput if input is dead after a successful build"
+  },
+  "graphics_v2_2026_09_11": {
+    "machine": "MacBook Pro 2019, i5-8257U, Iris Plus 645, 8 GB RAM, 18 GB free: Unreal Engine cannot be installed here",
+    "added": [
+      "SkyAtmosphere + ExponentialHeightFog + PostProcess components (bloom, AO, histogram exposure, vignette)",
+      "skeletal hero from /Game/Characters via AssetRegistry with Idle/Walk/Run clips",
+      "bootstrap imports casual-character.glb and PNG textures, builds M_AL60_Paving",
+      "renderer/device-profile settings for bloom, AO, sky atmosphere"
+    ],
+    "static_check": "passed",
+    "unreal_compilation": "not run"
   }
 }

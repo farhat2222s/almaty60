@@ -12,6 +12,10 @@
 #include "Components/TextRenderComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/SkyAtmosphereComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Components/PostProcessComponent.h"
+#include "Engine/Scene.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/SkyLight.h"
 #include "Engine/GameInstance.h"
@@ -51,6 +55,8 @@ void AAL60CityWorld::BeginPlay()
     UnlitMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_AL60_Unlit.M_AL60_Unlit"));
     if (!PaletteMaterial) PaletteMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
     if (!UnlitMaterial) UnlitMaterial = PaletteMaterial;
+    // Optional world-aligned paving texture created by Scripts/bootstrap_arbat.py from the Playable asset.
+    PavingMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_AL60_Paving.M_AL60_Paving"));
     Save = Cast<UAL60CitySaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("AL60_City_Demo_v1"), 0));
     if (!Save) Save = Cast<UAL60CitySaveGame>(UGameplayStatics::CreateSaveGameObject(UAL60CitySaveGame::StaticClass()));
     BuildCity();
@@ -71,7 +77,8 @@ void AAL60CityWorld::Shape(const FString& Group, const TCHAR* AssetPath, FVector
         Mesh->SetCollisionProfileName(bCollision ? TEXT("BlockAll") : TEXT("NoCollision"));
         Mesh->SetCastShadow(!bUnlit);
         Mesh->SetCullDistances(0, Group.StartsWith(TEXT("Mountain")) || Group == TEXT("Sky") ? 0 : 23000);
-        UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(bUnlit ? UnlitMaterial : PaletteMaterial, this);
+        const bool bPaved = PavingMaterial && (Group == TEXT("Promenade") || Group == TEXT("Sidewalk"));
+        UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(bUnlit ? UnlitMaterial : bPaved ? PavingMaterial : PaletteMaterial, this);
         if (Material)
         {
             Material->SetVectorParameterValue(TEXT("Tint"), Color);
@@ -213,26 +220,69 @@ void AAL60CityWorld::BuildCity()
 
 void AAL60CityWorld::BuildLighting()
 {
-    Shape(TEXT("Sky"),SpherePath,FVector::ZeroVector,FVector(140000),FLinearColor(0.24f,0.48f,0.64f),false,FRotator::ZeroRotator,true);
+    // Legacy fallback: an unlit sphere. With the atmosphere the real sky is rendered instead.
+    if (!bUseSkyAtmosphere) Shape(TEXT("Sky"),SpherePath,FVector::ZeroVector,FVector(140000),FLinearColor(0.24f,0.48f,0.64f),false,FRotator::ZeroRotator,true);
     ADirectionalLight* Sun = GetWorld()->SpawnActor<ADirectionalLight>();
     if (Sun)
     {
         Sun->SetActorRotation(FRotator(-38,-28,0));
         UDirectionalLightComponent* Light=Cast<UDirectionalLightComponent>(Sun->GetLightComponent());
         Light->SetMobility(EComponentMobility::Movable);
-        Light->SetIntensity(3.8f);
-        Light->SetLightColor(FLinearColor(1.f,0.87f,0.7f));
+        Light->SetIntensity(bUseSkyAtmosphere ? 5.5f : 3.8f);
+        Light->SetLightColor(bUseSkyAtmosphere ? FLinearColor(1.f,0.95f,0.88f) : FLinearColor(1.f,0.87f,0.7f));
         Light->DynamicShadowDistanceMovableLight=7500.f;
         Light->DynamicShadowCascades=2;
+        Light->CascadeDistributionExponent=2.2f;
+        Light->bAtmosphereSunLight=bUseSkyAtmosphere;
+        Light->MarkRenderStateDirty();
     }
     ASkyLight* Sky = GetWorld()->SpawnActor<ASkyLight>();
     if (Sky)
     {
-        Sky->GetLightComponent()->SetMobility(EComponentMobility::Movable);
-        Sky->GetLightComponent()->SetIntensity(0.9f);
-        Sky->GetLightComponent()->SetLightColor(FLinearColor(0.6f,0.77f,1.f));
-        Sky->GetLightComponent()->RecaptureSky();
+        USkyLightComponent* SkyComponent=Sky->GetLightComponent();
+        SkyComponent->SetMobility(EComponentMobility::Movable);
+        SkyComponent->SetIntensity(bUseSkyAtmosphere ? 1.0f : 0.9f);
+        SkyComponent->SetLightColor(bUseSkyAtmosphere ? FLinearColor::White : FLinearColor(0.6f,0.77f,1.f));
+        // Real-time capture keeps ambient light and reflections consistent with the atmosphere on desktop; mobile falls back to a captured cubemap.
+        SkyComponent->bRealTimeCapture=bUseSkyAtmosphere;
+        SkyComponent->MarkRenderStateDirty();
+        SkyComponent->RecaptureSky();
     }
+    if (bUseSkyAtmosphere)
+    {
+        Atmosphere=NewObject<USkyAtmosphereComponent>(this,TEXT("Atmosphere"));
+        Atmosphere->SetupAttachment(RootComponent);
+        AddInstanceComponent(Atmosphere);
+        Atmosphere->RegisterComponent();
+        HeightFog=NewObject<UExponentialHeightFogComponent>(this,TEXT("HeightFog"));
+        HeightFog->SetupAttachment(RootComponent);
+        HeightFog->SetFogDensity(0.005f);
+        HeightFog->SetFogHeightFalloff(0.3f);
+        HeightFog->SetFogInscatteringColor(FLinearColor(0.64f,0.76f,0.92f));
+        HeightFog->SetStartDistance(2200.f);
+        HeightFog->SetFogMaxOpacity(0.72f);
+        AddInstanceComponent(HeightFog);
+        HeightFog->RegisterComponent();
+    }
+    // Unbound post-process volume: gentle bloom, ambient occlusion, controlled exposure and a light vignette.
+    PostProcess=NewObject<UPostProcessComponent>(this,TEXT("PostProcess"));
+    PostProcess->SetupAttachment(RootComponent);
+    PostProcess->bUnbound=true;
+    PostProcess->Priority=1.f;
+    PostProcess->BlendWeight=1.f;
+    FPostProcessSettings& S=PostProcess->Settings;
+    S.bOverride_BloomIntensity=true;           S.BloomIntensity=0.35f;
+    S.bOverride_BloomThreshold=true;           S.BloomThreshold=1.1f;
+    S.bOverride_AmbientOcclusionIntensity=true;S.AmbientOcclusionIntensity=0.6f;
+    S.bOverride_AmbientOcclusionRadius=true;   S.AmbientOcclusionRadius=110.f;
+    S.bOverride_AutoExposureMethod=true;       S.AutoExposureMethod=AEM_Histogram;
+    S.bOverride_AutoExposureMinBrightness=true;S.AutoExposureMinBrightness=0.9f;
+    S.bOverride_AutoExposureMaxBrightness=true;S.AutoExposureMaxBrightness=1.3f;
+    S.bOverride_AutoExposureBias=true;         S.AutoExposureBias=0.35f;
+    S.bOverride_VignetteIntensity=true;        S.VignetteIntensity=0.22f;
+    S.bOverride_ColorSaturation=true;          S.ColorSaturation=FVector4(1.06f,1.06f,1.06f,1.f);
+    AddInstanceComponent(PostProcess);
+    PostProcess->RegisterComponent();
 }
 
 AAL60Citizen* AAL60CityWorld::AddCitizen(FName Id, const FString& Name, FVector Position, FVector PatrolEnd, FLinearColor Jacket)

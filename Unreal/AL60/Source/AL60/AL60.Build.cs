@@ -14,6 +14,7 @@ public class AL60 : ModuleRules
             "InputCore",
             "EnhancedInput",
             "AIModule",
+            "AssetRegistry",
             "HTTP",
             "Json",
             "JsonUtilities",
