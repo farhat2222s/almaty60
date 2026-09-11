@@ -142,3 +142,7 @@ TEST_DATABASE_URL=postgresql://... pnpm test
 ```
 
 Реальные нагрузочные/конкурентные прогоны, Docker/TLS deployment, восстановление PostgreSQL, тест на iOS/Android и независимая проверка безопасности остаются отдельными этапами. Исходные подходы к транзакциям сверены с [node-postgres](https://node-postgres.com/features/transactions) и [документацией блокировок PostgreSQL](https://www.postgresql.org/docs/current/explicit-locking.html).
+
+## Присутствие игроков (`POST /api/presence`)
+
+Игрок с ролью `player` отправляет `{x,z,heading,driving}` (метры мира игры) и получает `{players:[{id,name,x,z,heading,driving,age}],online,radius}` — других игроков в радиусе 400 м. Записи живут 15 с в памяти процесса, `logout` удаляет запись, лимит 120 запросов в минуту на игрока. Для нескольких экземпляров нужен общий стор (Redis). CORS: браузерная игра должна быть в `ALLOWED_ORIGINS` (`local-integration.mjs` по умолчанию разрешает `http://127.0.0.1:3060`).

@@ -12,7 +12,9 @@ const keyFile=path.join(directory,'encryption-key');
 if(!fs.existsSync(keyFile))fs.writeFileSync(keyFile,randomBytes(32).toString('hex'),{flag:'wx',mode:0o600});
 const pool=createPGlitePool(path.join(directory,'postgres')),service=createService(pool,{tokenEncryptionKey:fs.readFileSync(keyFile,'utf8').trim()});
 await migrate(pool);
-const server=createHttpServer({pool,service,allowedOrigins:[]}),port=Number(process.env.PORT||3080);
+// Browser game origins allowed to call this local instance (CORS); production sets ALLOWED_ORIGINS for the real host.
+const allowedOrigins=(process.env.ALLOWED_ORIGINS||'http://127.0.0.1:3060,http://localhost:3060').split(',').filter(Boolean);
+const server=createHttpServer({pool,service,allowedOrigins}),port=Number(process.env.PORT||3080);
 server.listen(port,'127.0.0.1',()=>console.log(`ALMATY 60 integration-only PostgreSQL WASM: http://127.0.0.1:${port}; not a deployed staging server.`));
 const timer=setInterval(()=>service.sweep().catch(()=>console.error('Integration sweep failed')),5000);timer.unref();
 const stop=()=>{clearInterval(timer);server.close(async()=>{await pool.end();process.exit(0);});};process.on('SIGINT',stop);process.on('SIGTERM',stop);

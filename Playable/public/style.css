@@ -386,3 +386,5 @@ kbd{display:inline-block;font:700 10px inherit;padding:4px 6px;border:1px solid 
 /* Спидометр */
 .speed-hud{display:inline-block;background:#0b1530f0;border:1px solid var(--line2);border-radius:30px;padding:8px 18px;font-variant-numeric:tabular-nums;font-size:22px;font-weight:900;color:#fff;margin-bottom:12px;box-shadow:var(--shadow)}
 .speed-hud.boost{color:var(--yellow)}
+
+.online-button.on{border-color:var(--green);box-shadow:0 0 0 2px #36d67355}

@@ -487,6 +487,19 @@ export class CityWorld {
   applyPixelRatio(value) {
     this.pixelRatio=value;this.renderer.setPixelRatio(value);this.composer?.setPixelRatio(value);this.resize();
   }
+  setRemotePlayers(list) {
+    // Other online players: simple avatars with name labels, positions eased between 2 s presence updates.
+    if(!this.remotePlayers)this.remotePlayers=new Map();
+    const now=performance.now(),seen=new Set();
+    for(const p of list||[]){
+      seen.add(p.id);let r=this.remotePlayers.get(p.id);
+      if(!r){const human=this.makePerson(['#d97d4e','#4e8fd9','#8f5ad9','#3fa86a','#d94e7d'][hash(p.id)%5]);human.root.position.set(p.x,0,p.z);this.scene.add(human.root);
+        const label=this.label(p.name||'Игрок',p.x,3.6,p.z,{color:'#ffe08a',width:5.5,height:1.05,background:'#183d4d',opacity:.95});
+        r={human,label,target:{x:p.x,z:p.z},heading:p.heading||0,moving:false,phase:hash(p.id)%100/10,updated:now};this.remotePlayers.set(p.id,r);}
+      r.moving=Math.hypot(r.target.x-p.x,r.target.z-p.z)>.3;r.target={x:p.x,z:p.z};r.heading=p.heading||0;r.updated=now;
+    }
+    for(const [id,r] of this.remotePlayers){if(!seen.has(id)&&now-r.updated>8000){this.scene.remove(r.human.root);this.scene.remove(r.label);r.label.material.map?.dispose();r.label.material.dispose();this.remotePlayers.delete(id);}}
+  }
   setHero(hero) {
     if(!hero?.root?.isObject3D)return false;
     if(this.hero){this.scene.remove(this.hero.root);this.hero.dispose?.();}
@@ -684,6 +697,7 @@ export class CityWorld {
       ped.root.position.set(a[0]+(b[0]-a[0])*u,0,a[1]+(b[1]-a[1])*u);ped.root.rotation.y=Math.atan2(-(b[0]-a[0])*ped.dir,-(b[1]-a[1])*ped.dir);this.animatePerson(ped,t*5.5+ped.phase,true);
     }
     this.updateTraffic(dt,t);
+    for(const r of this.remotePlayers?.values()||[]){const pos=r.human.root.position,k=1-Math.exp(-4*dt);pos.x=mix(pos.x,r.target.x,k);pos.z=mix(pos.z,r.target.z,k);r.human.root.rotation.y=angleLerp(r.human.root.rotation.y,r.heading,k);r.label.position.set(pos.x,3.6,pos.z);this.animatePerson(r.human,t*5.5+r.phase,r.moving);}
     for(const item of this.collectibles)if(item.root.visible){item.root.position.y=item.baseY+Math.sin(t*2+item.phase)*.16;item.root.rotation.y=t*.8+item.phase;}
     for(const m of this.brandMarkers||[]){m.rotation.y=t*.7;m.position.y=4.2+Math.sin(t*1.8)*.18;const near=this.camera.position.distanceTo(m.position);m.scale.setScalar(clamp((near-3)/6,.1,1));}
     for(const m of this.targetMarkers||[]){m.ring.scale.setScalar(1+Math.sin(t*3)*.05);m.label.position.y=4.1+Math.sin(t*2)*.2;}

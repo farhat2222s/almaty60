@@ -120,6 +120,17 @@ test('native Arbat route is playable at server speeds and scoped campaigns enfor
   const data=await service.analytics(owner);assert.ok(data.campaigns.every(c=>c.brand_id==='aporta'));
   await assert.rejects(service.analytics(p1),e=>e.code==='FORBIDDEN');
 });
+test('presence: players see nearby players only, entries expire, logout removes presence',async()=>{
+  const a=await player(),b=await player(),c=await player();
+  const ua=await service.authenticate(a.result.token),ub=await service.authenticate(b.result.token),uc=await service.authenticate(c.result.token);
+  await service.presenceUpdate(ua,{x:10,z:20,heading:1});
+  const far=await service.presenceUpdate(uc,{x:2000,z:2000,heading:0});assert.equal(far.players.length,0);assert.equal(far.online,2);
+  const near=await service.presenceUpdate(ub,{x:30,z:25,heading:0,driving:true});
+  assert.deepEqual(near.players.map(p=>p.name),[ua.name]);assert.equal(near.online,3);
+  await assert.rejects(service.presenceUpdate(ub,{x:'nope',z:0}),e=>e.code==='INVALID_INPUT');
+  await service.logout(ua);const after=await service.presenceUpdate(ub,{x:30,z:25,heading:0});assert.equal(after.players.length,0);
+});
+
 test('blocked account sessions are revoked; persisted rate limits work across service instances',async()=>{
   const {user,result}=await player(),admin=await role('admin',null);
   await service.blockUser(admin,user.id,{blocked:true});await assert.rejects(service.authenticate(result.token),e=>e.code==='UNAUTHENTICATED');

@@ -39,6 +39,7 @@ export function createHttpServer({pool,service,allowedOrigins=[],trustProxy=fals
       if(method==='POST'&&path==='/api/auth/logout')result=await service.logout(user);
       else if(method==='GET'&&path==='/api/me')result=await service.me(user);
       else if(method==='GET'&&path==='/api/history')result=await service.history(user);
+      else if(method==='POST'&&path==='/api/presence')result=await service.presenceUpdate(user,body);
       else if(method==='GET'&&path==='/api/missions')result=await service.missions();
       else if(method==='GET'&&(match=path.match(/^\/api\/missions\/([A-Za-z0-9_-]+)$/)))result=await service.missions(match[1]);
       else if(method==='POST'&&(match=path.match(/^\/api\/missions\/([A-Za-z0-9_-]+)\/start$/)))result=await service.start(user,match[1],key,body);

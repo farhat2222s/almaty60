@@ -63,7 +63,17 @@ export function createService(pool,config){
     if(!user||!valid||user.blocked){await audit(pool,user?.id||null,'login_failed',null,{addressHash:digest(address)});fail(401,'INVALID_CREDENTIALS');}
     return transaction(pool,async db=>{await audit(db,user.id,'login');return newSession(db,user);});
   }
-  async function logout(user){await pool.query('UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1',[user.token_hash]);return {ok:true};}
+  async function logout(user){presence.delete(user.id);await pool.query('UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1',[user.token_hash]);return {ok:true};}
+  // Live presence for the browser game: in-process memory (one instance), 15 s TTL, positions in world metres.
+  // Multi-instance deployments need a shared store (Redis) here; nothing about rewards depends on it.
+  const presence=new Map();const PRESENCE_TTL=15000,PRESENCE_RADIUS=400;
+  async function presenceUpdate(user,body={}){
+    requireRole(user,'player');await rate(`presence:${user.id}`,120);
+    const x=number(body.x,'x',-10000,10000),z=number(body.z,'z',-10000,10000),heading=number(body.heading??0,'heading',-10,10);
+    const now=Date.now();presence.set(user.id,{id:user.id,name:user.name,x,z,heading,driving:body.driving===true,updatedAt:now});
+    const players=[];for(const [id,p] of presence){if(now-p.updatedAt>PRESENCE_TTL){presence.delete(id);continue;}if(id===user.id)continue;if(Math.hypot(p.x-x,p.z-z)<=PRESENCE_RADIUS)players.push({id:p.id,name:p.name,x:p.x,z:p.z,heading:p.heading,driving:p.driving,age:now-p.updatedAt});}
+    return {players,online:presence.size,radius:PRESENCE_RADIUS,demo:true};
+  }
   async function expireAttempt(db,a,now){
     if(a.status!=='active'||new Date(a.deadline_at).getTime()>now)return false;
     await db.query("UPDATE mission_attempts SET status='failed',failure_reason='timeout',finished_at=clock_timestamp() WHERE id=$1",[a.id]);
@@ -205,5 +215,5 @@ export function createService(pool,config){
   }
   async function history(user){requireRole(user,'player');return {attempts:(await pool.query('SELECT id,mission_id,status,started_at,finished_at,failure_reason FROM mission_attempts WHERE player_id=$1 ORDER BY started_at DESC LIMIT 100',[user.id])).rows};}
   async function blockUser(user,id,body){requireRole(user,'admin');uuid(id);if(id===user.id)fail(409,'CANNOT_BLOCK_SELF');if(typeof body.blocked!=='boolean')fail(400,'INVALID_INPUT');return transaction(pool,async db=>{const r=await db.query('UPDATE users SET blocked=$2 WHERE id=$1 RETURNING id',[id,body.blocked]);if(!r.rows[0])fail(404,'USER_NOT_FOUND');if(body.blocked)await db.query('UPDATE sessions SET revoked_at=clock_timestamp() WHERE user_id=$1',[id]);await audit(db,user.id,'user_blocked',id,{blocked:body.blocked});return {ok:true};});}
-  return {register,login,logout,authenticate,rate,me,missions,start,input,finish,getAttempt,redeem,inspect,campaign,setCampaign,analytics,history,blockUser,sweep,audit};
+  return {register,login,logout,authenticate,rate,me,missions,start,input,finish,getAttempt,redeem,inspect,campaign,setCampaign,analytics,history,blockUser,sweep,audit,presenceUpdate};
 }
