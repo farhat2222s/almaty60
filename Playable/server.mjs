@@ -5,8 +5,12 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {performance} from 'node:perf_hooks';
 import {createGameCore, GameError} from './public/game-core.mjs';
+import {buildWorld} from './public/world-builder.mjs';
+import {setWorld} from './public/world-data.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+// Real central Almaty from OpenStreetMap (geo/city-local.json): buildings, streets and the drive graph.
+setWorld(buildWorld(JSON.parse(fs.readFileSync(path.join(HERE,'public','geo','city-local.json'),'utf8'))));
 function reject(status,error,message){throw new GameError(status,error,message);}
 
 /** Single local demo player. Rules live in public/game-core.mjs; this adds the on-disk save file. */
