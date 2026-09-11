@@ -1,0 +1,28 @@
+{
+  "id": "almaty-arbat-osm-12181379270",
+  "name": "Узел на пешеходном Арбате / Жібек Жолы даңғылы",
+  "wgs84": {
+    "lon": 76.9432304,
+    "lat": 43.2618928,
+    "alt": 0
+  },
+  "altitudeNote": "0 is a projection reference on the WGS84 ellipsoid, not surveyed terrain elevation.",
+  "osmNodeId": "12181379270",
+  "osmWayId": "387242322",
+  "nodeVersion": 1,
+  "nodeEditedAt": "2024-09-17T05:01:22Z",
+  "sourceUrl": "https://www.openstreetmap.org/node/12181379270",
+  "waySourceUrl": "https://www.openstreetmap.org/way/387242322",
+  "verifiedFrom": "source/arbat-osm.xml: node coordinates and membership in highway=pedestrian, loc_name=Арбат way",
+  "bbox": [
+    76.9375,
+    43.2585,
+    76.95,
+    43.263
+  ],
+  "axisConvention": {
+    "game": "x=east meters, z=south meters, y=up meters",
+    "ue": "X=x*100, Y=z*100, Z=y*100"
+  },
+  "migration": "Separate district dataset; existing prototype world/mission coordinates are not redefined."
+}

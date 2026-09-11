@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_DB: almaty60
+      POSTGRES_USER: al60_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/init-db.sh:/docker-entrypoint-initdb.d/10-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U al60_owner -d almaty60"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks: [private]
+  migrate:
+    build: .
+    command: ["node", "src/migrate.mjs"]
+    environment:
+      DATABASE_URL: postgresql://al60_owner:${POSTGRES_PASSWORD}@db:5432/almaty60
+      DATABASE_INTERNAL: "true"
+      APP_DB_ROLE: al60_app
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [private]
+  api:
+    build: .
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3080
+      DATABASE_URL: postgresql://al60_app:${APP_DB_PASSWORD}@db:5432/almaty60
+      DATABASE_INTERNAL: "true"
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?Set TOKEN_ENCRYPTION_KEY}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      TRUST_PROXY: "true"
+      SESSION_HOURS: 24
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+    networks: [private]
+  proxy:
+    image: caddy:2.11.4-alpine
+    environment:
+      STAGING_DOMAIN: ${STAGING_DOMAIN:?Set a DNS domain pointing at this server}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+    restart: unless-stopped
+    networks: [private,public]
+networks:
+  private: {internal: true}
+  public: {}
+volumes:
+  postgres_data: {}
+  caddy_data: {}
+  caddy_config: {}

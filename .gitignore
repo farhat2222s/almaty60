@@ -1,0 +1,26 @@
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+.claude/
+
+# Node
+**/node_modules/
+**/pnpm-store/
+Backend/dist/
+Backend/.env
+StagingBackend/.env
+*.tmp
+
+# Local runtime data (player save, PGlite database)
+Playable/data/
+StagingBackend/data/
+
+# Unreal
+Unreal/AL60/Binaries/
+Unreal/AL60/DerivedDataCache/
+Unreal/AL60/Intermediate/
+Unreal/AL60/Saved/
+Unreal/AL60/Builds/
+*.sln
+*.suo

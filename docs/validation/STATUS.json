@@ -1,0 +1,89 @@
+{
+  "release": "ALMATY60 v0.3.1 graphics verified in browser",
+  "playableBrowser": {
+    "url": "http://127.0.0.1:3060/?v=3",
+    "httpVerified": true,
+    "gameTestsPassed": 17,
+    "gameTestsTotal": 17,
+    "userProgressPreserved": true,
+    "v03VisualBrowserVerified": true,
+    "animatedGlbLoadedOnCpu": true,
+    "animationFramesChecked": 720,
+    "gpuCompileVerified": true,
+    "verifiedBy": "Claude, 2026-09-09, embedded Chromium of the desktop app (WebGL2, ANGLE Metal)",
+    "postProcessing": "bloom + SSAO via EffectComposer, adaptive",
+    "parkedCarModels": 8
+  },
+  "secureBackend": {
+    "localUrl": "http://127.0.0.1:3080/ready",
+    "engine": "PGlite PostgreSQL WASM integration-only",
+    "automatedTestsPassed": 17,
+    "automatedTestsTotal": 17,
+    "liveHttpChecksPassed": 9,
+    "remoteDeployed": false
+  },
+  "unreal": {
+    "sourcePrepared": true,
+    "compiled": false,
+    "mapGenerated": false,
+    "apkBuilt": false,
+    "ipaBuilt": false,
+    "deviceFpsMeasured": false
+  },
+  "externalBlockers": [
+    "Unreal Engine and compatible full Xcode / Android SDK / signing environment",
+    "Selected staging server / domain / PostgreSQL and operator access",
+    "2GIS owner Map Tiles / MapGL key and allowed origins",
+    "Browser availability for final v0.3 GPU/render/UI verification"
+  ],
+  "remainingProductWork": [
+    "Compile and fix any actual UE compiler/runtime errors",
+    "Replace procedural temporary models and animations with final optimized assets",
+    "Complete native UI and city progression sync",
+    "Server collision world / vehicle simulation and anti-bot measures",
+    "Physical mobile performance and stability tests",
+    "Remote deployment and restore/load/security verification"
+  ],
+  "geography": {
+    "source": "OpenStreetMap ODbL",
+    "bbox": [
+      76.9375,
+      43.2585,
+      76.95,
+      43.263
+    ],
+    "features": 1268,
+    "roads": 530,
+    "buildings": 165,
+    "estimatedBuildingHeights": 158,
+    "green": 108,
+    "plazas": 4,
+    "pois": 461,
+    "vertices": 4717,
+    "nodeTestsPassed": 11,
+    "pythonTestsPassed": 20,
+    "staticMeshesAfterBatching": 13,
+    "windowBatches": 2,
+    "twoGisConnected": false,
+    "twoGisAdapterPrepared": true,
+    "unrealImporterExecuted": false
+  },
+  "v031": {
+    "fixed": [
+      "paving texture re-upload after PNG load (GL_INVALID_VALUE glTexSubImage2D) — texture disposed before swapping image",
+      "SSAOPass r180 requires RenderPass output; RenderPass now always enabled"
+    ],
+    "added": [
+      "Kenney CC0 cars (8 models) at 12 parking spots",
+      "bloom + SSAO with Авто/Все эффекты/Выключить in graphics panel",
+      "brand marker shrinks when the player stands under it",
+      "geo mode progress messages; map collapsed by default on narrow screens"
+    ],
+    "verified": [
+      "main city renders through composer: pixel readback non-black, SSAO darkens, bloom lifts highlights",
+      "geo district loads (165 buildings) and renders with hero",
+      "profile/rewards/missions UI intact after Codex merge",
+      "server tests 17/17, Codex visual tests 4/4"
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "date": "2026-09-09",
+  "scope": "read-only standard-path/tool discovery; not a full disk scan",
+  "tools": {
+    "UnrealEditor": null,
+    "xcodebuild": "/usr/bin/xcodebuild",
+    "adb": null,
+    "sdkmanager": null,
+    "java": "/usr/bin/java"
+  },
+  "standard_paths": {
+    "/Applications/Xcode.app": false,
+    "/Users/Shared/Epic Games": false,
+    "/Users/farhat/Library/Android/sdk": false,
+    "/Library/Developer/CommandLineTools": true
+  },
+  "sdk_environment_paths": {
+    "ANDROID_HOME": null,
+    "ANDROID_SDK_ROOT": null,
+    "JAVA_HOME": null
+  },
+  "xcode_select": "/Library/Developer/CommandLineTools",
+  "xcodebuild_version": "xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance",
+  "static_checks": {
+    "project_json": "pass",
+    "python_ast": "pass",
+    "shell_syntax": "pass",
+    "generated_header_order": "pass: all 14 headers, including latest root MissionManager patch",
+    "brace_balance": "pass",
+    "secure_checkpoint_no_client_event": "pass",
+    "no_auth_response_logging": "pass",
+    "cpp_files": 14,
+    "headers": 14,
+    "documented_textbox_style_api": "pass: uses GetWidgetStyle/SetWidgetStyle",
+    "staging_snapshot_contract": "pass: source fields matched against StagingBackend/src/service.mjs",
+    "vehicle_source_review": "pass: possession round trip, speed guard, ground/capsule/path exit checks, movement sweep and rotation overlap, mobile remapping; not compiled",
+    "city_static_attachment": "pass: static root and static instanced geometry",
+    "ignored_input_zeroing": "pass: server direction zero when pawn uncontrolled or move input ignored"
+  },
+  "unreal_compilation": "not run: engine and full Xcode not discovered",
+  "editor_bootstrap": "not run",
+  "native_runtime": "not run",
+  "ios_android_build": "not run",
+  "device_fps": "not measured",
+  "bootstrap_guard": "invoked; immediate exit1 on missing AL60_UE_ROOT; no engine download or native compile attempted",
+  "vehicle_runtime": "not run: UE absent; all car driving/collision/touch tests remain pending",
+  "review_2026_09_09": {
+    "scope": "line-by-line review of 14 cpp / 14 headers, configs, scripts against UE 5.x API; no compiler available",
+    "engine_version_confirmed": "UE 5.8 released 2026-06-17; EngineAssociation 5.8 is valid",
+    "fixed": [
+      "UFUNCTION GetState returned const reference (UHT rejects) -> by value",
+      "UFUNCTION StartMission default argument TEXT(\"\") removed",
+      "FMath::CeilToInt(double) int64 vs FMath::Max<int> deduction conflict -> CeilToInt32",
+      "explicit Engine/StaticMesh.h include in 5 files using UStaticMesh",
+      "UButton::SetIsFocusable call removed (version-dependent accessor)",
+      "UTF-8 BOM added to 6 sources with Cyrillic TEXT() literals",
+      "bootstrap-native.sh passes -project= explicitly",
+      "bootstrap_arbat.py guards world settings override"
+    ],
+    "static_check_script": "Scripts/check-native-static.sh -> passed",
+    "unreal_compilation": "still not run: engine and full Xcode absent on this machine",
+    "top_remaining_risk": "legacy BindAxis/BindAction input path on UE 5.8; migrate to EnhancedInput if input is dead after a successful build"
+  }
+}

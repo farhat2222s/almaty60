@@ -1,0 +1,11 @@
+{
+  "worldBoundsPreserved": true,
+  "windowInstancePreserved": true,
+  "sharedGeometryNotDisposed": true,
+  "batches": {
+    "staticMeshesBefore": 4,
+    "staticMeshesAfter": 1,
+    "mergedBatches": 1,
+    "windowBatches": 1
+  }
+}

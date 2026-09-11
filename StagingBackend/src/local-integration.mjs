@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {randomBytes} from 'node:crypto';
+import {createPGlitePool} from './pglite-pool.mjs';
+import {migrate} from './migrate.mjs';
+import {createService} from './service.mjs';
+import {createHttpServer} from './server.mjs';
+if(process.env.NODE_ENV==='production')throw new Error('PGlite mode is integration-only; use PostgreSQL for staging.');
+const directory=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../data/local-integration');fs.mkdirSync(directory,{recursive:true,mode:0o700});
+const keyFile=path.join(directory,'encryption-key');
+if(!fs.existsSync(keyFile))fs.writeFileSync(keyFile,randomBytes(32).toString('hex'),{flag:'wx',mode:0o600});
+const pool=createPGlitePool(path.join(directory,'postgres')),service=createService(pool,{tokenEncryptionKey:fs.readFileSync(keyFile,'utf8').trim()});
+await migrate(pool);
+const server=createHttpServer({pool,service,allowedOrigins:[]}),port=Number(process.env.PORT||3080);
+server.listen(port,'127.0.0.1',()=>console.log(`ALMATY 60 integration-only PostgreSQL WASM: http://127.0.0.1:${port}; not a deployed staging server.`));
+const timer=setInterval(()=>service.sweep().catch(()=>console.error('Integration sweep failed')),5000);timer.unref();
+const stop=()=>{clearInterval(timer);server.close(async()=>{await pool.end();process.exit(0);});};process.on('SIGINT',stop);process.on('SIGTERM',stop);

@@ -1,0 +1,92 @@
+{
+  "url": "http://127.0.0.1:3060",
+  "resourceChecks": [
+    {
+      "path": "/",
+      "status": 200,
+      "bytes": 6334,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/app.mjs",
+      "status": 200,
+      "bytes": 53325,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/hero.mjs",
+      "status": 200,
+      "bytes": 4026,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/world.mjs",
+      "status": 200,
+      "bytes": 47994,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/materials.mjs",
+      "status": 200,
+      "bytes": 4724,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/atmosphere.mjs",
+      "status": 200,
+      "bytes": 4179,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/geography.mjs",
+      "status": 200,
+      "bytes": 5458,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/geo-world.mjs",
+      "status": 200,
+      "bytes": 23887,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/geo/arbat.geojson",
+      "status": 200,
+      "bytes": 1146772,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/geo/district-local.json",
+      "status": 200,
+      "bytes": 1385923,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/geo/provider-config.json",
+      "status": 200,
+      "bytes": 25,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/assets/models/casual-character.glb",
+      "status": 200,
+      "bytes": 1430660,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/assets/visual-v3/alatau-panorama-v3.png",
+      "status": 200,
+      "bytes": 2530747,
+      "matchesPackagedFile": true
+    },
+    {
+      "path": "/assets/visual-v3/arbat-paving-albedo-v3.png",
+      "status": 200,
+      "bytes": 3424355,
+      "matchesPackagedFile": true
+    }
+  ],
+  "resolvedModuleImports": 18,
+  "twoGisKeyInPackage": "empty",
+  "visualBrowserVerified": false
+}

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import * as THREE from '../public/vendor/three.module.js';
+import {createSurfaceLibrary} from '../public/materials.mjs';
+const context=new Proxy({}, {get(target,key){if(key==='getImageData')return()=>({data:new Uint8ClampedArray(512*512*4)});return target[key]??(()=>{});},set(target,key,value){target[key]=value;return true;}});
+globalThis.document={createElement(type){assert.equal(type,'canvas');return{width:0,height:0,getContext:()=>context};}};
+const surfaces=createSurfaceLibrary(THREE,{capabilities:{getMaxAnisotropy:()=>8}}),material=new THREE.MeshStandardMaterial();surfaces.apply(material,'stone');
+const shader={uniforms:{},vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader};material.onBeforeCompile(shader);
+const expand=source=>source.replace(/#include <([\w\d_]+)>/g,(_,name)=>{assert.ok(THREE.ShaderChunk[name]!==undefined,`known shader include ${name}`);return expand(THREE.ShaderChunk[name]);});
+const vertex=expand(shader.vertexShader),fragment=expand(shader.fragmentShader);
+assert.ok(vertex.indexOf('vec3 objectNormal')<vertex.indexOf('vec3 almatyLocalNormal'),'normal is declared before triplanar transform');
+assert.ok(fragment.indexOf('vec3 almatyTexel')<fragment.indexOf('roughnessFactor=clamp'),'surface color is declared before roughness use');
+assert.ok(vertex.includes('almatyVertex=instanceMatrix*almatyVertex;'));assert.ok(shader.uniforms.almatySurface.value.isTexture);assert.equal(shader.uniforms.almatySurface.value.wrapS,THREE.RepeatWrapping);
+const report={standardShaderChunkExpansion:true,normalDeclarationOrder:true,surfaceSampleDeclarationOrder:true,instancedWorldTransform:true,repeatingSurfaceTexture:true,gpuCompilation:'Requires real WebGL browser verification'};console.log(JSON.stringify(report));surfaces.dispose();material.dispose();

@@ -1,0 +1,34 @@
+{
+  "height": 3.2,
+  "animationCount": 24,
+  "front": "-Z",
+  "wardrobe": "body garment only",
+  "backpackParent": "Chest",
+  "backpackInitial": [
+    3.469446951953614e-18,
+    2.1500000000000004,
+    0.16999999999999998
+  ],
+  "reports": [
+    {
+      "animation": "Idle",
+      "minimumSoleHeight": -0.0008,
+      "maximumSoleHeight": 0.0002
+    },
+    {
+      "animation": "Walk",
+      "minimumSoleHeight": -0.0303,
+      "maximumSoleHeight": 0.0392
+    },
+    {
+      "animation": "Run",
+      "minimumSoleHeight": -0.0099,
+      "maximumSoleHeight": 0.1336
+    },
+    {
+      "animation": "Scooter idle",
+      "minimumSoleHeight": 0.0006,
+      "maximumSoleHeight": 0.0098
+    }
+  ]
+}

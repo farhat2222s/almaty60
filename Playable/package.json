@@ -1,0 +1,14 @@
+{
+  "name": "almaty60-local-playable",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/server.test.mjs",
+    "test:visual": "node tests/visual-hero.mjs && node tests/visual-geo-dataset.mjs && node tests/visual-geo-merge.mjs && node tests/visual-surface-shaders.mjs"
+  }
+}

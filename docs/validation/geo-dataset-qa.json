@@ -1,0 +1,43 @@
+{
+  "stats": {
+    "buildings": 165,
+    "roads": 533,
+    "green": 108,
+    "pois": 461,
+    "estimatedHeights": 158,
+    "origin": {
+      "lon": 76.9432304,
+      "lat": 43.2618928,
+      "alt": 0
+    },
+    "attribution": "© OpenStreetMap contributors",
+    "source": "OSM local geometry",
+    "positionKind": "virtual-georeferenced",
+    "renderBatches": {
+      "staticMeshesBefore": 1017,
+      "staticMeshesAfter": 13,
+      "mergedBatches": 10,
+      "windowBatches": 2
+    }
+  },
+  "bounds": {
+    "minX": -465.2987765248328,
+    "maxX": 549.6800564511872,
+    "minZ": -123.02747672133614,
+    "maxZ": 376.9326148586384
+  },
+  "walkableSpawn": {
+    "x": 0,
+    "z": 0,
+    "lon": 76.9432304,
+    "lat": 43.2618928,
+    "alt": 0,
+    "source": "virtual-georeferenced"
+  },
+  "finiteGeometry": true,
+  "triangleEstimate": 84965,
+  "windowInstances": 14000,
+  "sceneMeshes": 15,
+  "verifiedVertices": 4717,
+  "maxRoundtripErrorDegrees": 2.1316282072803006e-14
+}

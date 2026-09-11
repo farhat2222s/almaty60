@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  playable:
+    name: Playable game tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Server rules and HTTP boundary
+        working-directory: Playable
+        run: node --test tests/server.test.mjs
+      - name: Visual/geometry checks (CPU)
+        working-directory: Playable
+        run: |
+          node tests/visual-hero.mjs
+          node tests/visual-geo-dataset.mjs
+          node tests/visual-geo-merge.mjs
+          node tests/visual-surface-shaders.mjs
+      - name: Static build smoke (game-core is browser-safe)
+        working-directory: Playable
+        run: node -e "import('./public/game-core.mjs').then(m=>{const g=m.createGameCore({clock:{now:()=>0,monotonic:()=>0}});const s=g.handle('GET','/api/state');if(!s.missions.length)process.exit(1);console.log('missions',s.missions.length)})"
+
+  geo:
+    name: Geo dataset tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: node --test Geo/tests/*.test.mjs
+      - run: python3 -m unittest discover -s Geo/tests -p 'test_*.py'
+
+  staging-backend:
+    name: StagingBackend (PostgreSQL rules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+      - working-directory: StagingBackend
+        run: pnpm install --frozen-lockfile
+      - working-directory: StagingBackend
+        run: pnpm test
+
+  unreal-static:
+    name: Unreal source static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash Unreal/AL60/Scripts/check-native-static.sh

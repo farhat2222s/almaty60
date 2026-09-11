@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=2,viewport-fit=cover"><meta name="theme-color" content="#0a1730"><meta name="description" content="ALMATY 60 — город, бренды, твои 60 секунд. Локальная игровая демонстрация."><title>ALMATY 60 · Город. Бренды. Твои 60 секунд.</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Crect width='60' height='60' rx='16' fill='%230a1730'/%3E%3Ctext x='7' y='42' font-size='35' font-weight='900' fill='%23ffc800'%3E60%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css"></head>
+<body>
+<canvas id="world" aria-label="Трёхмерный игровой мир Алматы. Управление WASD или стрелками." tabindex="0"></canvas>
+<div id="loading"><div class="logo big">ALMATY <em>60</em></div><span>Город. Бренды. Твои 60 секунд.</span><i class="loader"></i></div>
+<div class="vignette"></div>
+
+<header class="topbar">
+  <button class="player-chip" data-panel="profile" aria-label="Открыть профиль">
+    <span class="avatar"><b id="avatar-letter">F</b><em id="level-badge">1</em></span>
+    <span class="player-meta"><b id="player-name">Игрок</b><small>Уровень <span id="level">1</span> · <span id="level-xp">0/300</span></small><i class="level-bar"><u id="level-bar"></u></i></span>
+  </button>
+  <a class="logo top-logo" href="#" aria-label="ALMATY 60">ALMATY <em>60</em></a>
+  <div class="top-spacer"></div>
+  <div class="wallet">
+    <button class="pill coins" data-panel="profile" aria-label="Монеты"><span data-icon="coin"></span><b id="coins">0</b></button>
+    <button class="pill xp" data-panel="profile" aria-label="Опыт"><span data-icon="diamond"></span><b id="xp">0</b></button>
+    <button class="round-button" data-panel="rewards" aria-label="Награды"><span data-icon="bell"></span><b id="reward-count" hidden>0</b></button>
+    <button class="round-button" data-panel="graphics" aria-label="Свет и атмосфера" title="Свет и атмосфера"><span style="font-size:24px">☀</span></button>
+    <button class="round-button" data-panel="brand" aria-label="Кабинет бренда" title="Кабинет бренда"><span data-icon="briefcase"></span></button>
+  </div>
+</header>
+
+<button class="geo-entry card" data-geography>АРБАТ <b>Реальный район ↗</b></button>
+<div id="place-name" class="place-name"><span>АЛМАТЫ · ЦЕНТР</span><strong>Город начинается с тебя</strong></div>
+
+<aside class="story-card card">
+  <div class="eyebrow"><span>ТВОЯ ИСТОРИЯ</span><span>01 / ГОРОД</span></div>
+  <h2 id="story-title">Знакомство с Алматы</h2>
+  <p id="story-description">Поговори с Аидой у фонтана. Она покажет, с чего начать.</p>
+  <div class="story-progress"><span id="story-progress-text">Открыто мест: 0 / 6</span><b id="explore-pct">0%</b></div>
+  <div class="progress"><i id="explore-bar"></i></div>
+  <button id="story-go" class="text-button">К городскому проводнику <span>→</span></button>
+</aside>
+
+<div id="attempt-hud" class="attempt-hud" hidden></div>
+
+<div id="interaction" class="interaction card" hidden><kbd>E</kbd><div><b></b><small></small></div><button id="interact-button" class="primary small">Поговорить</button></div>
+
+
+
+<div class="left-stack"><div class="touch-controls" aria-label="Сенсорное управление"><div class="dpad"><button data-move="0,-1" aria-label="Двигаться вперёд">▲</button><button data-move="-1,0" aria-label="Двигаться влево">◀</button><button data-move="0,1" aria-label="Двигаться назад">▼</button><button data-move="1,0" aria-label="Двигаться вправо">▶</button></div><button id="touch-sprint" aria-label="Бежать">БЕГ</button></div><div class="minimap-wrap card">
+  <div class="map-caption"><b><span data-icon="pin"></span> АЛМАТЫ</b><button data-panel="map" aria-label="Развернуть карту">⤢</button></div>
+  <canvas id="minimap" width="230" height="174" aria-label="Миникарта города"></canvas>
+  <div class="map-foot"><span id="district">Центр</span><span>N ↑</span></div>
+</div></div>
+<div class="right-stack"><button id="transport" class="transport card" title="Транспорт"><span data-icon="bike"></span><span>Самокат</span></button>
+<aside id="nearby-card" class="nearby-card card"></aside>
+</div>
+<div class="bottom-center">
+  <div id="waypoint-hud" class="waypoint" hidden></div>
+  <div id="controls-hint" class="controls-hint"><span><kbd>W A S D</kbd> движение</span><span><kbd>SHIFT</kbd> бег</span><span><kbd>E</kbd> действие</span><button data-panel="help" aria-label="Все элементы управления">?</button></div>
+</div>
+
+
+
+
+<nav class="rail" aria-label="Игровое меню">
+  <button class="active" data-panel="world" aria-label="Город"><span data-icon="home"></span><span>Город</span></button>
+  <button data-panel="map" aria-label="Карта"><span data-icon="map"></span><span>Карта</span></button>
+  <button data-panel="missions" aria-label="Задания"><span data-icon="bolt"></span><span>Задания</span></button>
+  <button data-panel="rewards" aria-label="Награды"><span data-icon="gift"></span><span>Награды</span><b id="reward-dot" hidden></b></button>
+  <button data-panel="profile" aria-label="Профиль"><span data-icon="user"></span><span>Профиль</span></button>
+</nav>
+
+<div id="panel-backdrop" class="panel-backdrop" hidden></div>
+<section id="panel" class="panel" aria-label="Игровая панель" tabindex="-1" hidden></section>
+<div id="modal-backdrop" class="modal-backdrop" hidden><section id="modal" class="modal" role="dialog" aria-modal="true"></section></div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<script src="vendor/qrcode.js"></script><script type="module" src="app.mjs"></script></body></html>

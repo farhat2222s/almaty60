@@ -1,0 +1,8 @@
+{
+  "standardShaderChunkExpansion": true,
+  "normalDeclarationOrder": true,
+  "surfaceSampleDeclarationOrder": true,
+  "instancedWorldTransform": true,
+  "repeatingSurfaceTexture": true,
+  "gpuCompilation": "Requires real WebGL browser verification"
+}

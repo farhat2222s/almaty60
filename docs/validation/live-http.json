@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-09T10:29:15.323Z",
+  "base": "http://127.0.0.1:3080",
+  "engine": "PGlite / local integration only",
+  "checks": [
+    "live HTTP readiness",
+    "unauthenticated profile denied",
+    "HTTP registration and authenticated session",
+    "native Arbat mission start",
+    "real elapsed time authoritative movement wins all5 native checkpoints",
+    "live HTTP finish retry same reward",
+    "player cannot redeem staff reward",
+    "progress and reward persist in profile",
+    "HTTP logout revokes session"
+  ],
+  "elapsedMovementSeconds": 9.781,
+  "passed": true,
+  "notes": "No credentials or reward codes included. Not a remote deployment or native UE run."
+}
