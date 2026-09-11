@@ -27,6 +27,10 @@ for(const x of [-94,-32,32,94])for(const z of [-94,-32,32,94]){
  BUILDINGS.push({x,z,w:25,d:24,h:10+((Math.abs(x+z)*7)%26),color:['#e6d7b5','#9baebc','#d4b995','#adc7ce'][(Math.abs(x+z)/2)%4|0]});
 }
 export function canWalk(x,z){return Math.abs(x)<WORLD_LIMIT&&Math.abs(z)<WORLD_LIMIT&&!BUILDINGS.some(b=>Math.abs(x-b.x)<b.w/2+1.2&&Math.abs(z-b.z)<b.d/2+1.2)}
+// Drivable cars. Positions persist in the save; `model` indexes the Kenney model list on the client.
+export const CARS=[[-5.6,-82,Math.PI,0,'#9ebfc6'],[5.6,52,0,1,'#be9569'],[-5.6,90,Math.PI,2,'#d0cbb3'],[58.4,-29,Math.PI,3,'#244a69'],[69.6,24,0,4,'#c9c0aa'],[58.4,30,Math.PI,5,'#e8c24a'],[-69.6,52,0,6,'#d0cbb3'],[-58.4,-20,Math.PI,7,'#9ebfc6'],[30,-69.6,Math.PI/2,1,'#a7b2b8'],[-30,5.6,-Math.PI/2,2,'#c6a27d'],[30,58.4,Math.PI/2,3,'#5a7d95'],[-36,-58.4,-Math.PI/2,5,'#e8c24a']].map(([x,z,heading,model,color],i)=>({id:'car-'+i,x,z,heading,model,color}));
+export const CAR_ENTER_RADIUS=7;
+export const SPEEDS={walk:14,sprint:22,scooter:36,drive:48,boost:64};
 export const TYPE_LABELS={collect:'Сбор',checkpoint:'Маршрут',delivery:'Доставка',reaction:'Реакция'};
 export const INITIAL_MISSIONS=BRANDS.flatMap((b,bi)=>['collect','checkpoint','delivery','reaction'].map((type,i)=>({
  id:`${b.id}-${type}`,brandId:b.id,title:[['Кофейный маршрут','Ритм Арбата','Яблочный сбор','След кочевника','Ноты города'][bi],['Пять поворотов','Темп улиц','Тропами базара','Площадь на скорости','Культурный круг'][bi],['Заказ к фонтану','Эстафета STEPPE','Доставка корзины','Письмо путешественника','Билет в театр'][bi],['Поймай момент','Быстрая реакция','Сочный ритм','Ритм степи','Попади в ноту'][bi]][i],

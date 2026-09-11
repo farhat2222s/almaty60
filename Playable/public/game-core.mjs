@@ -1,6 +1,6 @@
 // ALMATY 60 game rules shared by the Node server and the static (GitHub Pages) build.
 // No Node imports here: this file must run unchanged in the browser.
-import {SPAWN, LANDMARKS, BRANDS, NPCS, COLLECTIBLES, INITIAL_MISSIONS, canWalk} from './world-data.mjs';
+import {SPAWN, LANDMARKS, BRANDS, NPCS, COLLECTIBLES, INITIAL_MISSIONS, CARS, CAR_ENTER_RADIUS, SPEEDS, canWalk} from './world-data.mjs';
 
 const DURATIONS = new Set([15,30,45,60,90,120]);
 const TYPES = new Set(['collect','checkpoint','delivery','reaction']);
@@ -44,8 +44,11 @@ export function createGameCore(options={}){
   if(saved){
     state=JSON.parse(saved);
     if(state.version!==1||!state.player||!Array.isArray(state.missions))throw new Error('Неподдерживаемый файл сохранения; сохраните резервную копию и проверьте data/game-state.json.');
+    // Saves from before driving existed: add the cars and the driving flag without touching progress.
+    if(!Array.isArray(state.cars))state.cars=clone(CARS);
+    if(state.player.driving===undefined)state.player.driving=null;
   }else{
-    state={version:1,player:{id:'local-player',name:'Исследователь',xp:0,coins:0,level:1,position:{...SPAWN},skin:'night',vehicle:false,inventory:['night'],discovered:[],collected:[],quests:[],achievements:[],stats:{wins:0,attempts:0,distance:0}},missions:clone(INITIAL_MISSIONS),rewards:[],history:[],activeAttempt:null,events:[],campaigns:BRANDS.map(b=>({id:`campaign-${b.id}`,brandId:b.id,title:`Городская коллекция ${b.name}`,active:true,maxRewards:500,start:null,end:null,createdAt:iso()}))};
+    state={version:1,player:{id:'local-player',name:'Исследователь',xp:0,coins:0,level:1,position:{...SPAWN},skin:'night',vehicle:false,driving:null,inventory:['night'],discovered:[],collected:[],quests:[],achievements:[],stats:{wins:0,attempts:0,distance:0}},missions:clone(INITIAL_MISSIONS),rewards:[],history:[],activeAttempt:null,events:[],cars:clone(CARS),campaigns:BRANDS.map(b=>({id:`campaign-${b.id}`,brandId:b.id,title:`Городская коллекция ${b.name}`,active:true,maxRewards:500,start:null,end:null,createdAt:iso()}))};
   }
   let lastInputMono=mono();
   let attemptEndMono=null;
@@ -164,7 +167,7 @@ export function createGameCore(options={}){
     const missions=state.missions.map(m=>{
       const c=campaignFor(m);return {...clone(m),active:campaignOpen(m),rewardsRemaining:Math.max(0,(c?.maxRewards??m.maxRewards??500)-campaignIssued(m.campaignId))};
     });
-    return {player:clone(state.player),missions,brands:clone(BRANDS),landmarks:clone(LANDMARKS),npcs:NPCS.map(n=>({...n,quest:{...QUESTS[n.id],id:n.id,progress:Math.min(QUESTS[n.id].total,questProgress(n.id))}})),rewards:clone(state.rewards),history:clone(state.history.slice(0,200)),activeAttempt:a,lastAttempt:clone(state.lastAttempt||null),campaigns:clone(state.campaigns),serverNow:now(),demo:true};
+    return {player:clone(state.player),missions,brands:clone(BRANDS),landmarks:clone(LANDMARKS),npcs:NPCS.map(n=>({...n,quest:{...QUESTS[n.id],id:n.id,progress:Math.min(QUESTS[n.id].total,questProgress(n.id))}})),rewards:clone(state.rewards),history:clone(state.history.slice(0,200)),cars:clone(state.cars),activeAttempt:a,lastAttempt:clone(state.lastAttempt||null),campaigns:clone(state.campaigns),serverNow:now(),demo:true};
   }
   function movement(body){
     // Direction is the only accepted movement input; supplied client coordinates/timestamps have no authority.
@@ -172,7 +175,8 @@ export function createGameCore(options={}){
     if(body.sprint!==undefined&&typeof body.sprint!=='boolean')reject(400,'INVALID_INPUT','sprint должен быть логическим значением.');
     const current=mono(),dt=Math.min(.25,Math.max(0,(current-lastInputMono)/1000));lastInputMono=current;
     const length=Math.hypot(x,z),divisor=Math.max(1,length);
-    const speed=state.player.vehicle?36:body.sprint?22:14;
+    const car=state.player.driving?state.cars.find(c=>c.id===state.player.driving):null;
+    const speed=car?(body.sprint?SPEEDS.boost:SPEEDS.drive):state.player.vehicle?SPEEDS.scooter:body.sprint?SPEEDS.sprint:SPEEDS.walk;
     const old={...state.player.position},position=state.player.position;
     const dx=x/divisor*speed*dt,dz=z/divisor*speed*dt;
     // Substeps prevent tunneling through corners even at maximum vehicle speed.
@@ -182,8 +186,23 @@ export function createGameCore(options={}){
       if(canWalk(position.x,position.z+dz/steps))position.z+=dz/steps;
       inspectWorld();
     }
-    state.player.stats.distance+=distance(old,position);dirty();
+    state.player.stats.distance+=distance(old,position);
+    if(car){car.x=position.x;car.z=position.z;if(length>.05)car.heading=Math.atan2(-x,-z);car.odometer=(car.odometer||0)+distance(old,position);}
+    dirty();
     if(++inputSinceSave>=30)persist();
+  }
+  function toggleCar(){
+    const p=state.player;
+    if(p.driving){
+      const car=state.cars.find(c=>c.id===p.driving);p.driving=null;
+      // Step out beside the car when the kerb side is free; otherwise stay where the car stopped.
+      if(car){const h=car.heading||0;for(const side of [1,-1]){const x=car.x+side*2.6*Math.cos(h),z=car.z-side*2.6*Math.sin(h);if(canWalk(x,z)){p.position.x=x;p.position.z=z;break;}}}
+      record('car_exit',{carId:car?.id||null,title:'Вышел из машины'});dirty();return;
+    }
+    const nearest=state.cars.map(c=>({c,d:distance(p.position,c)})).sort((a,b)=>a.d-b.d)[0];
+    if(!nearest||nearest.d>CAR_ENTER_RADIUS)reject(409,'NO_CAR','Рядом нет машины. Подойди к припаркованному автомобилю.');
+    p.driving=nearest.c.id;p.vehicle=false;p.position.x=nearest.c.x;p.position.z=nearest.c.z;
+    achievement('driver','За рулём');record('car_enter',{carId:nearest.c.id,title:'Сел за руль'});dirty();
   }
   function startMission(id){
     const mission=state.missions.find(m=>m.id===id);
@@ -285,7 +304,9 @@ export function createGameCore(options={}){
       if(reward.status!=='AVAILABLE')reject(409,`REWARD_${reward.status}`,reward.status==='USED'?'Этот код уже погашен.':reward.status==='EXPIRED'?'Срок кода истёк.':'Код отменён.');
       reward.status='USED';reward.redeemedAt=iso();record('reward_redeemed',{rewardId:reward.id,title:reward.title,brandId:reward.brandId});event('redemption',reward.missionId,{rewardId:reward.id});dirty();persist();result={reward:clone(reward),...snapshot()};
     }
+    else if(method==='POST'&&pathname==='/api/car'){toggleCar();result=snapshot();}
     else if(method==='POST'&&pathname==='/api/vehicle'){
+      if(state.player.driving)reject(409,'DRIVING','Сначала выйди из машины.');
       if(body.buy===true&&!state.player.inventory.includes('scooter')){
         if(state.player.coins<120)reject(409,'INSUFFICIENT_COINS','Самокат стоит 120 монет.');
         state.player.coins-=120;state.player.inventory.push('scooter');record('purchase',{item:'scooter',coins:-120,title:'Городской самокат'});achievement('on-wheels','На колёсах');

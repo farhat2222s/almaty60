@@ -7,7 +7,8 @@ import {RenderPass} from './vendor/addons/postprocessing/RenderPass.js';
 import {SSAOPass} from './vendor/addons/postprocessing/SSAOPass.js';
 import {UnrealBloomPass} from './vendor/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from './vendor/addons/postprocessing/OutputPass.js';
-import { WORLD_LIMIT, SPAWN, BUILDINGS, LANDMARKS, BRANDS, NPCS, COLLECTIBLES, canWalk } from './world-data.mjs';
+import { WORLD_LIMIT, SPAWN, BUILDINGS, LANDMARKS, BRANDS, NPCS, COLLECTIBLES, CARS, SPEEDS, canWalk } from './world-data.mjs';
+const CAR_YAW=Math.PI; // Kenney car models face +Z; game heading 0 faces -Z.
 
 const TAU = Math.PI * 2;
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -349,9 +350,9 @@ export class CityWorld {
     // Parked cars are scenery, and remain beside the street.
     // Spots sit on the asphalt edge, clear of collectibles, mission targets, NPCs and kiosks. Procedural cars appear
     // immediately; Kenney CC0 models replace them once loaded (assets/models/kenney-cars).
-    this.parkedCars=[];
-    for(const[x,z,rotation,model,color]of [[-5.6,-82,Math.PI,0,'#9ebfc6'],[5.6,52,0,1,'#be9569'],[-5.6,90,Math.PI,2,'#d0cbb3'],[58.4,-29,Math.PI,3,'#244a69'],[69.6,24,0,4,'#c9c0aa'],[58.4,30,Math.PI,5,'#e8c24a'],[-69.6,52,0,6,'#d0cbb3'],[-58.4,-20,Math.PI,7,'#9ebfc6'],[30,-69.6,Math.PI/2,1,'#a7b2b8'],[-30,5.6,-Math.PI/2,2,'#c6a27d'],[30,58.4,Math.PI/2,3,'#5a7d95'],[-36,-58.4,-Math.PI/2,5,'#e8c24a']]) {
-      const car=this.makeCar(color);car.position.set(x,.15,z);car.rotation.y=rotation;this.scene.add(car);this.parkedCars.push({group:car,x,z,rotation,model});
+    this.parkedCars=[];this.traffic=[];
+    for(const c of CARS) {
+      const car=this.makeCar(c.color);car.position.set(c.x,.15,c.z);car.rotation.y=c.heading+CAR_YAW;this.scene.add(car);this.parkedCars.push({id:c.id,group:car,x:c.x,z:c.z,heading:c.heading,model:c.model,baseY:.15,wheels:[],spin:0});
     }
     this.loadCarModels();
   }
@@ -439,11 +440,26 @@ export class CityWorld {
     for(const spot of this.parkedCars||[]) {
       const model=ready[spot.model%ready.length].clone(true);
       const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),s=4.3/Math.max(size.x,size.z,.01);
-      model.scale.setScalar(s);model.position.set(spot.x,.16-box.min.y*s,spot.z);model.rotation.y=spot.rotation;
-      model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.9;}}});
+      model.scale.setScalar(s);model.position.set(spot.x,.16-box.min.y*s,spot.z);model.rotation.y=spot.heading+CAR_YAW;spot.baseY=.16-box.min.y*s;
+      spot.wheels=[];model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material){o.material.envMapIntensity=.9;}}if(/wheel/i.test(o.name))spot.wheels.push(o);});
       this.scene.add(model);if(spot.group)this.scene.remove(spot.group);spot.group=model;
     }
     this.carModels=ready;this.canvas.dataset.carModels=String(ready.length);
+    this.spawnTraffic(ready);
+  }
+  spawnTraffic(models) {
+    // Cosmetic AI traffic: right-hand lanes on the three avenues and three cross streets, looping end to end.
+    const lanes=[];
+    for(const road of [-64,0,64]){lanes.push({axis:'z',road,side:1,dir:1});lanes.push({axis:'z',road,side:-1,dir:-1});lanes.push({axis:'x',road,side:1,dir:-1});lanes.push({axis:'x',road,side:-1,dir:1});}
+    lanes.forEach((lane,i)=>{
+      if(i%2&&i%3)return; // eight cars is enough for a lively street without crowding the missions
+      const model=models[(i*5+3)%models.length].clone(true);
+      const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),s=4.1/Math.max(size.x,size.z,.01);
+      model.scale.setScalar(s);model.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;}});
+      const wheels=[];model.traverse(o=>{if(/wheel/i.test(o.name))wheels.push(o);});
+      this.scene.add(model);
+      this.traffic.push({group:model,lane,progress:seeded(i+41)*200,speed:9+seeded(i+7)*7,baseY:.16-box.min.y*s,wheels,spin:0});
+    });
   }
   setupPostFX() {
     // Bloom + SSAO through EffectComposer. In three r180 SSAOPass post-processes the RenderPass result (it no longer renders the
@@ -488,7 +504,7 @@ export class CityWorld {
       const key=e.code;
       if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','ShiftLeft','ShiftRight','KeyE'].includes(key))e.preventDefault();
       if(key==='KeyE'&&!e.repeat){this.onInteract();return;}
-      if(key==='Space'&&!e.repeat&&this.jump===0&&!this.state.player?.vehicle)this.jumpVelocity=7.5;
+      if(key==='Space'&&!e.repeat&&this.jump===0&&!this.state.player?.vehicle&&!this.state.player?.driving)this.jumpVelocity=7.5;
       this.keys.add(key);
     };
     this.keyUp=(e)=>{this.keys.delete(e.code)};
@@ -527,6 +543,10 @@ export class CityWorld {
     if(this.error)return;
     const collected=new Set(state.player?.collected||[]);
     for(const item of this.collectibles)item.root.visible=!collected.has(item.id);
+    for(const car of state.cars||[]){
+      const spot=this.parkedCars?.find(s=>s.id===car.id);if(!spot||state.player?.driving===car.id)continue;
+      spot.x=car.x;spot.z=car.z;spot.heading=car.heading;spot.group.position.set(car.x,spot.baseY,car.z);spot.group.rotation.y=car.heading+CAR_YAW;
+    }
     if(this.player) {
       const skin=state.player?.skin||state.player?.equippedSkin;
       const color=skin==='yellow'||skin==='sun'||skin==='gold'?'#e5bd39':skin==='cyan'||skin==='mint'?'#39a5a7':'#142939';
@@ -610,12 +630,18 @@ export class CityWorld {
     const dt=Math.min(frameMs/1000,.045);this.lastTime=time;const t=time/1000;
     this.emitInput(time);
     const input=this.input(),moving=Math.hypot(input.x,input.z)>.02;
-    const vehicle=!!this.state.player?.vehicle,speed=vehicle?36:input.sprint?22:14;
+    const drivingId=this.state.player?.driving||null,driving=!!drivingId,vehicle=!driving&&!!this.state.player?.vehicle;
+    const speed=driving?(input.sprint?SPEEDS.boost:SPEEDS.drive):vehicle?SPEEDS.scooter:input.sprint?SPEEDS.sprint:SPEEDS.walk;
     if(moving) {
       const nx=this.position.x+input.x*speed*dt,nz=this.position.z+input.z*speed*dt;
       if(canWalk(nx,this.position.z))this.position.x=nx;
       if(canWalk(this.position.x,nz))this.position.z=nz;
-      this.heading=angleLerp(this.heading,Math.atan2(-input.x,-input.z),1-Math.exp(-12*dt));
+      this.heading=angleLerp(this.heading,Math.atan2(-input.x,-input.z),1-Math.exp(-(driving?5:12)*dt));
+    }
+    const drivenCar=driving?this.parkedCars?.find(s=>s.id===drivingId):null;
+    if(drivenCar){
+      drivenCar.group.position.set(this.position.x,drivenCar.baseY,this.position.z);drivenCar.group.rotation.y=this.heading+CAR_YAW;
+      drivenCar.spin+=(moving?speed:0)*dt/.45;for(const w of drivenCar.wheels)w.rotation.x=drivenCar.spin;
     }
     if(this.hasState) {
       const error=Math.hypot(this.position.x-this.serverPosition.x,this.position.z-this.serverPosition.z);
@@ -625,7 +651,7 @@ export class CityWorld {
     }
     this.walkTime+=dt*(moving?(input.sprint?17:12):2);
     if(this.jumpVelocity||this.jump){this.jump=Math.max(0,this.jump+this.jumpVelocity*dt);this.jumpVelocity-=21*dt;if(this.jump===0)this.jumpVelocity=0;}
-    this.player.root.visible=!this.hero;this.scooter.visible=vehicle;
+    this.player.root.visible=!this.hero&&!driving;this.scooter.visible=vehicle;if(this.hero)this.hero.root.visible=!driving;
     if(this.hero){
       this.hero.root.position.set(this.position.x,.19+(vehicle?.45:0)+this.jump,this.position.z);this.hero.root.rotation.y=this.heading;
       this.hero.update?.({dt,time:t,moving:moving&&!vehicle,sprint:input.sprint,vehicle,jump:this.jump});
@@ -636,7 +662,13 @@ export class CityWorld {
       if(vehicle){this.player.body.rotation.x=-.025;this.player.body.position.y=0;}
     }
     this.scooter.position.set(this.position.x,.18,this.position.z);this.scooter.rotation.y=this.heading;
-    this.playerShadow.position.set(this.position.x,.275,this.position.z);this.playerShadow.scale.setScalar(vehicle?1.1:1-this.jump*.08);
+    this.playerShadow.position.set(this.position.x,.275,this.position.z);this.playerShadow.scale.setScalar(driving?2.2:vehicle?1.1:1-this.jump*.08);
+    for(const car of this.traffic){
+      car.progress=(car.progress+car.speed*dt)%216;const along=car.progress-108;const l=car.lane;
+      const x=l.axis==='z'?l.road+l.side*3.6:along*l.dir,z=l.axis==='z'?along*l.dir:l.road+l.side*3.6;
+      car.group.position.set(x,car.baseY,z);car.group.rotation.y=(l.axis==='z'?(l.dir>0?Math.PI:0):(l.dir>0?-Math.PI/2:Math.PI/2))+CAR_YAW;
+      car.spin+=car.speed*dt/.45;for(const w of car.wheels)w.rotation.x=car.spin;
+    }
     for(const ped of this.pedestrians) {
       const progress=(t*ped.speed+ped.offset)%400,forward=progress<200,z=forward?progress-100:300-progress;
       ped.root.position.set(ped.lane,0,z);ped.root.rotation.y=forward?Math.PI:0;this.animatePerson(ped,t*5.5+ped.phase,true);
@@ -646,8 +678,8 @@ export class CityWorld {
     for(const m of this.targetMarkers||[]){m.ring.scale.setScalar(1+Math.sin(t*3)*.05);m.label.position.y=4.1+Math.sin(t*2)*.2;}
     if(this.waypoint){this.waypointGroup.children[0].scale.setScalar(1+Math.sin(t*2)*.04);this.waypointGroup.children[1].rotation.y=t*.8;}
     const cameraEase=1-Math.exp(-9*dt),portrait=this.camera.aspect<.85;
-    const {yaw,pitch}=this.orbit,distance=this.orbit.distance*(portrait?1.1:1),horizontal=Math.cos(pitch)*distance;
-    this.cameraTarget.set(this.position.x,1.8+this.jump*.25,this.position.z);
+    const {yaw,pitch}=this.orbit,distance=this.orbit.distance*(portrait?1.1:1)*(driving?1.45:1),horizontal=Math.cos(pitch)*distance;
+    this.cameraTarget.set(this.position.x,(driving?2.3:1.8)+this.jump*.25,this.position.z);
     const desired=new THREE.Vector3(this.position.x+Math.sin(yaw)*horizontal+Math.cos(yaw)*.65,1.8+Math.sin(pitch)*distance,this.position.z+Math.cos(yaw)*horizontal-Math.sin(yaw)*.65);
     const direction=desired.clone().sub(this.cameraTarget).normalize();this.cameraRay.set(this.cameraTarget,direction);
     let maxDistance=desired.distanceTo(this.cameraTarget);
@@ -655,7 +687,7 @@ export class CityWorld {
     desired.copy(this.cameraTarget).addScaledVector(direction,maxDistance);
     this.camera.position.lerp(desired,cameraEase);this.camera.lookAt(this.cameraTarget);
     this.atmosphereController?.update(dt,t,this.position);
-    if(time-this.lastView>180){this.lastView=time;this.onView({position:{...this.position},heading:this.heading,moving,speed:moving?speed:0,vehicle});}
+    if(time-this.lastView>180){this.lastView=time;this.onView({position:{...this.position},heading:this.heading,moving,speed:moving?speed:0,vehicle,driving});}
     this.renderer.info.reset();
     if(this.composer&&this.postfx!=='off')this.composer.render(dt);else this.renderer.render(this.scene,this.camera);
     this.samplePerformance(time,frameMs);

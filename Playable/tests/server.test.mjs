@@ -168,6 +168,28 @@ test('inventory purchases debit once, cannot overspend, and persist selected equ
   s=f.post('/api/player',{skin:'cyan'});assert.equal(s.player.coins,coins-80);assert.equal(s.player.inventory.filter(x=>x==='cyan').length,1);
 });
 
+test('driving: enter a nearby car only, car speed applies, the car follows and stays where the player leaves it',()=>{
+  const f=fixture();
+  throwsCode(()=>f.post('/api/car'),'NO_CAR');
+  assert.equal(f.get().cars.length,12);
+  f.walkTo(2,50);                       // next to car-1 parked at (5.6, 52)
+  let s=f.post('/api/car');assert.equal(s.player.driving,'car-1');assert.equal(s.player.vehicle,false);
+  assert.ok(s.player.achievements.some(a=>a.id==='driver'));
+  const start={...s.player.position};
+  f.advance(250);s=f.post('/api/input',{x:0,z:1,sprint:false});
+  const moved=s.player.position.z-start.z;
+  assert.ok(moved>11.5&&moved<12.5,`car speed 48 u/s for 0.25 s, moved ${moved}`);
+  const car=s.cars.find(c=>c.id==='car-1');assert.equal(car.x,s.player.position.x);assert.equal(car.z,s.player.position.z);
+  throwsCode(()=>f.post('/api/vehicle'),'DRIVING');
+  f.advance(250);s=f.post('/api/input',{x:0,z:1,sprint:true});
+  assert.ok(s.player.position.z-car.z>15.5,'boost is faster than driving');
+  s=f.post('/api/car');assert.equal(s.player.driving,null);
+  const parked=s.cars.find(c=>c.id==='car-1');
+  assert.ok(Math.hypot(parked.x-s.player.position.x,parked.z-s.player.position.z)<3.5,'player steps out beside the car');
+  assert.notEqual(parked.z,52,'car position persisted away from its original spot');
+  assert.ok(s.history.some(h=>h.type==='car_enter')&&s.history.some(h=>h.type==='car_exit'));
+});
+
 test('atomic save survives service restart and in-progress attempt fails safely',()=>{
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'almaty60-test-'));
   try{
