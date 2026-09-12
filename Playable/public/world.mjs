@@ -9,6 +9,7 @@ import {UnrealBloomPass} from './vendor/addons/postprocessing/UnrealBloomPass.js
 import {OutputPass} from './vendor/addons/postprocessing/OutputPass.js';
 import { WORLD, SPEEDS, canWalk } from './world-data.mjs';
 import {simulateCar} from './vehicle.mjs';
+import {courierAt} from './chase.mjs';
 import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
 import {insidePolygon,hash} from './world-builder.mjs';
 const CAR_YAW=Math.PI; // Kenney car models face +Z; game heading 0 faces -Z.
@@ -371,7 +372,7 @@ export class CityWorld {
       part('box',trousers,0,-.44,0,.28,.85,.31,leg);part('box',shoe,0,-.94,-.09,.31,.2,.49,leg);
       limbs.push({arm,leg,side});
     }
-    if(!hero){const shadow=new THREE.Mesh(new THREE.CircleGeometry(.62,12),new THREE.MeshBasicMaterial({color:'#162e39',transparent:true,opacity:.12,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.10;root.add(shadow);}
+    if(!hero){const shadow=new THREE.Mesh(new THREE.CircleGeometry(.62,12),new THREE.MeshBasicMaterial({color:'#162e39',transparent:true,opacity:.12,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.10;shadow.userData.ownedGeometry=true;shadow.userData.ownedMaterial=true;root.add(shadow);}
     return {root,body,limbs,torso,jacket:cloth};
   }
   animatePerson(person,phase,moving,sprint=false) {
@@ -410,7 +411,7 @@ export class CityWorld {
     const names=['sedan','sedan-sports','hatchback-sports','suv','suv-luxury','taxi','van','delivery'],loader=new GLTFLoader();
     const models=await Promise.all(names.map(n=>loader.loadAsync(new URL(`./assets/models/kenney-cars/${n}.glb`,import.meta.url).href).then(g=>g.scene).catch(error=>{console.warn('Car model unavailable, procedural car stays:',n,error?.message);return null})));
     if(this.disposed)return;
-    const ready=models.filter(Boolean);if(!ready.length)return;
+    const ready=models.filter(Boolean);if(!ready.length){this.spawnTraffic(null);return;}
     for(const spot of this.parkedCars||[]) {
       const model=ready[spot.model%ready.length].clone(true);
       const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),s=4.3/Math.max(size.x,size.z,.01);
@@ -428,11 +429,11 @@ export class CityWorld {
     const pool=edges.filter(e=>['secondary','tertiary','residential'].includes(e.road.highway)&&Math.hypot(nodes[e.a].x-W.spawn.x,nodes[e.a].z-W.spawn.z)<900);
     for(let i=0;i<22&&pool.length;i++){
       const e=pool[hash('traffic'+i)%pool.length];
-      const model=models[(i*5+3)%models.length].clone(true);
-      const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),s=4.1/Math.max(size.x,size.z,.01);
-      model.scale.setScalar(s);model.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;}});
-      const wheels=[];model.traverse(o=>{if(/wheel/i.test(o.name))wheels.push(o);});this.scene.add(model);
-      this.traffic.push({group:model,edge:e,t:(hash('t'+i)%100)/100,dir:e.oneway?1:(i%2?1:-1),speed:0,cruise:e.speed*(0.8+seeded(i)*0.4),baseY:.16-box.min.y*s,wheels,spin:0,id:i});
+      let model,baseY=.15;const wheels=[];
+      if(models?.length){model=models[(i*5+3)%models.length].clone(true);const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),s=4.1/Math.max(size.x,size.z,.01);model.scale.setScalar(s);baseY=.16-box.min.y*s;model.traverse(o=>{if(/wheel/i.test(o.name))wheels.push(o);});}
+      else model=this.makeCar(['#9ebfc6','#be9569','#d0cbb3','#244a69'][i%4]); // models unavailable (offline, blocked assets): procedural cars keep the streets alive
+      model.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;}});this.scene.add(model);
+      this.traffic.push({group:model,edge:e,t:(hash('t'+i)%100)/100,dir:e.oneway?1:(i%2?1:-1),speed:0,cruise:e.speed*(0.8+seeded(i)*0.4),baseY,wheels,spin:0,id:i});
     }
   }
   updateTraffic(dt,time) {
@@ -444,10 +445,11 @@ export class CityWorld {
       // Signal: avenue crossings alternate axes every 6 s; cars hold within 7 m of a red node.
       let hold=false;
       if(to.signal&&remaining<7){const axis=Math.abs(dx)>Math.abs(dz)?0:1;if(((Math.floor(time/6)+to.id)%2)!==axis)hold=true;}
-      const px=from.x+dx*car.t,pz=from.z+dz*car.t;
-      // Yield to the car ahead in the same lane direction, and to the player.
-      const fx=dx/len,fz=dz/len;
-      for(const other of this.traffic){if(other===car)continue;const ox=other.group.position.x-px,oz=other.group.position.z-pz;const ahead=ox*fx+oz*fz;if(ahead>0&&ahead<9&&Math.abs(-ox*fz+oz*fx)<3){hold=true;break;}}
+      const fx=dx/len,fz=dz/len,right=[-fz,fx],offset=e.road.width*.25+.3;
+      // Own lane position (the rendered one), so lateral checks compare like with like.
+      const px=from.x+dx*car.t+right[0]*offset,pz=from.z+dz*car.t+right[1]*offset;car.forward=[fx,fz];
+      // Yield only to cars ahead in the same direction and lane; oncoming traffic on the other side never stops anyone.
+      for(const other of this.traffic){if(other===car||!other.forward||other.forward[0]*fx+other.forward[1]*fz<.5)continue;const ox=other.group.position.x-px,oz=other.group.position.z-pz;const ahead=ox*fx+oz*fz;if(ahead>0&&ahead<9&&Math.abs(-ox*fz+oz*fx)<2.2){hold=true;break;}}
       const plx=this.position.x-px,plz=this.position.z-pz;const pa=plx*fx+plz*fz;if(pa>0&&pa<8&&Math.abs(-plx*fz+plz*fx)<3.5)hold=true;
       car.speed=hold?Math.max(0,car.speed-18*dt):Math.min(car.cruise,car.speed+6*dt);
       car.t+=car.speed*dt/len;
@@ -458,7 +460,6 @@ export class CityWorld {
         const pick=candidates.map(n=>{const nf=n.a===to.id?nodes[n.b]:nodes[n.a];const ang=Math.atan2(nf.z-to.z,nf.x-to.x)-Math.atan2(dz,dx);const dev=Math.abs(Math.atan2(Math.sin(ang),Math.cos(ang)));return {n,score:dev+((hash(car.id+':'+to.id+':'+Math.floor(time))%5)/5)};}).sort((a,b)=>a.score-b.score)[0].n;
         car.edge=pick;car.dir=pick.a===to.id?1:-1;car.t=0;continue;
       }
-      const right=[-fz,fx],offset=e.road.width*.25+.3;
       car.group.position.set(from.x+dx*car.t+right[0]*offset,car.baseY,from.z+dz*car.t+right[1]*offset);
       car.group.rotation.y=Math.atan2(-fx,-fz)+CAR_YAW;
       car.spin+=car.speed*dt/.45;for(const w of car.wheels)w.rotation.x=car.spin;
@@ -489,6 +490,7 @@ export class CityWorld {
   }
   setRemotePlayers(list) {
     // Other online players: simple avatars with name labels, positions eased between 2 s presence updates.
+    if(this.error)return;
     if(!this.remotePlayers)this.remotePlayers=new Map();
     const now=performance.now(),seen=new Set();
     for(const p of list||[]){
@@ -498,15 +500,16 @@ export class CityWorld {
         r={human,label,target:{x:p.x,z:p.z},heading:p.heading||0,moving:false,phase:hash(p.id)%100/10,updated:now};this.remotePlayers.set(p.id,r);}
       r.moving=Math.hypot(r.target.x-p.x,r.target.z-p.z)>.3;r.target={x:p.x,z:p.z};r.heading=p.heading||0;r.updated=now;
     }
-    for(const [id,r] of this.remotePlayers){if(!seen.has(id)&&now-r.updated>8000){this.scene.remove(r.human.root);this.scene.remove(r.label);r.label.material.map?.dispose();r.label.material.dispose();this.remotePlayers.delete(id);}}
+    for(const [id,r] of this.remotePlayers){if(!seen.has(id)&&now-r.updated>8000){this.scene.remove(r.human.root);this.scene.remove(r.label);r.label.material.map?.dispose();r.label.material.dispose();const li=this.labels.indexOf(r.label);if(li>=0)this.labels.splice(li,1);r.human.root.traverse(o=>{if(o.userData.ownedGeometry)o.geometry?.dispose();if(o.userData.ownedMaterial)o.material?.dispose();});this.remotePlayers.delete(id);}}
   }
   setHero(hero) {
-    if(!hero?.root?.isObject3D)return false;
+    if(this.error||!hero?.root?.isObject3D)return false;
     if(this.hero){this.scene.remove(this.hero.root);this.hero.dispose?.();}
     this.hero=hero;this.scene.add(hero.root);this.player.root.visible=false;hero.setSkin?.(this.skinColor||'#142939');return true;
   }
   setAtmosphere(mode) {return this.atmosphereController?.set(mode)||false}
   setBackdrop(url) {
+    if(this.error)return Promise.resolve(false);
     return new Promise(resolve=>new THREE.TextureLoader().load(url,texture=>{
       texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
       if(this.backdrop){this.backdrop.material.map?.dispose();this.backdrop.geometry.dispose();this.backdrop.material.dispose();this.scene.remove(this.backdrop);}
@@ -538,8 +541,11 @@ export class CityWorld {
     let x=(this.keys.has('KeyD')||this.keys.has('ArrowRight')?1:0)-(this.keys.has('KeyA')||this.keys.has('ArrowLeft')?1:0)+Number(this.touch.x||0);
     let z=(this.keys.has('KeyS')||this.keys.has('ArrowDown')?1:0)-(this.keys.has('KeyW')||this.keys.has('ArrowUp')?1:0)+Number(this.touch.z||0);
     const len=Math.hypot(x,z);if(len>1){x/=len;z/=len;}
+    const sprint=!!(this.touch.sprint||this.keys.has('ShiftLeft')||this.keys.has('ShiftRight'));
+    // Behind the wheel the vector is car-relative (x steers, z throttles): exactly what simulateCar and the rules expect.
+    if(this.state?.player?.driving)return{x,z,sprint};
     const cos=Math.cos(this.orbit.yaw),sin=Math.sin(this.orbit.yaw),cameraX=x*cos+z*sin,cameraZ=-x*sin+z*cos;
-    return{x:cameraX,z:cameraZ,sprint:!!(this.touch.sprint||this.keys.has('ShiftLeft')||this.keys.has('ShiftRight'))};
+    return{x:cameraX,z:cameraZ,sprint};
   }
   emitInput(time,force=false) {
     if(force||time-this.lastInput>=100){this.lastInput=time;this.onInput(this.input())}
@@ -560,7 +566,11 @@ export class CityWorld {
     const collected=new Set(state.player?.collected||[]);
     for(const item of this.collectibles)item.root.visible=!collected.has(item.id);
     for(const car of state.cars||[]){
-      if(state.player?.driving===car.id&&this.carState&&this.carState.id===car.id&&Math.abs(this.carState.speed-car.speed)>14)this.carState.speed=car.speed;
+      if(state.player?.driving===car.id&&this.carState&&this.carState.id===car.id){
+        // Reconcile the predicted car with the authoritative one: speed on big gaps, heading softly (snap past 0.5 rad).
+        if(Math.abs(this.carState.speed-car.speed)>14)this.carState.speed=car.speed;
+        const d=Math.atan2(Math.sin(car.heading-this.carState.heading),Math.cos(car.heading-this.carState.heading));this.carState.heading+=Math.abs(d)>.5?d:d*.25;
+      }
       const spot=this.parkedCars?.find(s=>s.id===car.id);if(!spot||state.player?.driving===car.id)continue;
       spot.x=car.x;spot.z=car.z;spot.heading=car.heading;spot.group.position.set(car.x,spot.baseY,car.z);spot.group.rotation.y=car.heading+CAR_YAW;
     }
@@ -572,6 +582,39 @@ export class CityWorld {
     const attempt=state.activeAttempt;
     const targetKey=JSON.stringify(attempt?{id:attempt.id,type:attempt.type,targets:attempt.targets,index:attempt.targetIndex,current:attempt.currentTarget,status:attempt.status}:null);
     if(targetKey!==this.targetKey){this.targetKey=targetKey;this.buildTargets(attempt)}
+    this.syncCourier(attempt);
+  }
+  syncCourier(attempt) {
+    // Chase courier: a van that follows the attempt's route; its pose comes from elapsed time through the same
+    // courierAt() the rules use, so the client only extrapolates between snapshots.
+    const active=attempt&&attempt.type==='chase'&&attempt.status==='active'&&Array.isArray(attempt.route)&&attempt.route.length>1;
+    if(!active){
+      const c=this.courier;if(!c)return;
+      this.scene.remove(c.group);this.scene.remove(c.label);this.scene.remove(c.ring);this.labels=this.labels.filter(l=>l!==c.label);
+      c.label.material.map?.dispose();c.label.material.dispose();c.ring.geometry.dispose();c.ring.material.dispose();this.courier=null;return;
+    }
+    const chase=attempt.chase||{};
+    if(this.courier&&this.courier.attemptId===attempt.id){const c=this.courier;c.elapsed=chase.elapsed||0;c.syncedAt=performance.now();c.speed=chase.speed||c.speed;c.contact=chase.contact||0;return;}
+    if(this.courier)this.syncCourier(null);
+    const mission=this.state.missions?.find(m=>m.id===attempt.missionId),brand=this.state.brands?.find(b=>b.id===mission?.brandId),color=brand?.color||'#ffc800';
+    let group,baseY=.15;const wheels=[];
+    const model=this.carModels?.length?this.carModels[Math.min(6,this.carModels.length-1)]:null;
+    if(model){group=model.clone(true);const box=new THREE.Box3().setFromObject(group),size=box.getSize(new THREE.Vector3()),s=4.6/Math.max(size.x,size.z,.01);group.scale.setScalar(s);baseY=.16-box.min.y*s;group.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}if(/wheel/i.test(o.name))wheels.push(o);});}
+    else group=this.makeCar(color);
+    this.scene.add(group);
+    const label=this.label('КУРЬЕР',0,4.2,0,{color,width:5,height:1,background:'#2a0f1e',opacity:.95});
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(3.2,.16,8,40),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false}));ring.rotation.x=-Math.PI/2;this.scene.add(ring);
+    this.courier={attemptId:attempt.id,route:attempt.route,speed:chase.speed||22,elapsed:chase.elapsed||0,syncedAt:performance.now(),contact:chase.contact||0,group,wheels,baseY,label,ring,color,spin:0,pos:{x:0,z:0}};
+    this.updateCourier(0,performance.now()/1000);
+  }
+  updateCourier(dt,t) {
+    const c=this.courier;if(!c)return;
+    const p=courierAt(c.route,c.elapsed+(performance.now()-c.syncedAt)/1000,c.speed);c.pos={x:p.x,z:p.z};
+    c.group.position.set(p.x,c.baseY,p.z);c.group.rotation.y=p.heading+CAR_YAW;
+    c.spin+=(p.done?0:c.speed)*dt/.45;for(const w of c.wheels)w.rotation.x=c.spin;
+    c.label.position.set(p.x,4.2+Math.sin(t*3)*.15,p.z);
+    const near=Math.hypot(this.position.x-p.x,this.position.z-p.z)<=12;
+    c.ring.position.set(p.x,.3,p.z);c.ring.scale.setScalar(near?1+Math.sin(t*10)*.12:1+Math.sin(t*3)*.06);c.ring.material.color.set(near?'#36d673':c.color);
   }
   clearGroup(group) {
     while(group?.children.length){const child=group.children[0];group.remove(child);child.traverse(o=>{if(o.userData.ownedGeometry)o.geometry?.dispose();if(o.userData.ownedMaterial){o.material?.map?.dispose();o.material?.dispose()}})}
@@ -652,7 +695,7 @@ export class CityWorld {
     if(driving){
       // Same arcade model as the rules: the client predicts, the server position reconciles below.
       if(!this.carState||this.carState.id!==drivingId){const sc=(this.state.cars||[]).find(c=>c.id===drivingId)||{};this.carState={id:drivingId,x:this.position.x,z:this.position.z,heading:sc.heading??this.heading,speed:sc.speed||0};}
-      simulateCar(this.carState,input,dt,canWalk);
+      const carDt=Math.min(frameMs/1000,.12),slices=Math.max(1,Math.ceil(carDt/.03));for(let i=0;i<slices;i++)simulateCar(this.carState,input,carDt/slices,canWalk);
       this.position.x=this.carState.x;this.position.z=this.carState.z;this.heading=this.carState.heading;speed=Math.abs(this.carState.speed);
     } else {
       this.carState=null;
@@ -696,7 +739,7 @@ export class CityWorld {
       const a=ped.road.points[seg],b=ped.road.points[seg+1],u=Math.min(1,(ped.progress-acc)/Math.max(.01,ped.lengths[seg]));
       ped.root.position.set(a[0]+(b[0]-a[0])*u,0,a[1]+(b[1]-a[1])*u);ped.root.rotation.y=Math.atan2(-(b[0]-a[0])*ped.dir,-(b[1]-a[1])*ped.dir);this.animatePerson(ped,t*5.5+ped.phase,true);
     }
-    this.updateTraffic(dt,t);
+    this.updateTraffic(dt,t);this.updateCourier(dt,t);
     for(const r of this.remotePlayers?.values()||[]){const pos=r.human.root.position,k=1-Math.exp(-4*dt);pos.x=mix(pos.x,r.target.x,k);pos.z=mix(pos.z,r.target.z,k);r.human.root.rotation.y=angleLerp(r.human.root.rotation.y,r.heading,k);r.label.position.set(pos.x,3.6,pos.z);this.animatePerson(r.human,t*5.5+r.phase,r.moving);}
     for(const item of this.collectibles)if(item.root.visible){item.root.position.y=item.baseY+Math.sin(t*2+item.phase)*.16;item.root.rotation.y=t*.8+item.phase;}
     for(const m of this.brandMarkers||[]){m.rotation.y=t*.7;m.position.y=4.2+Math.sin(t*1.8)*.18;const near=this.camera.position.distanceTo(m.position);m.scale.setScalar(clamp((near-3)/6,.1,1));}

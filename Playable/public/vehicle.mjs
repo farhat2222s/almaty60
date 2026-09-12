@@ -7,9 +7,12 @@ export function simulateCar(car,input,dt,canWalk){
   if(throttle>.05)v+=(v<0?CAR.brake:CAR.accel)*throttle*dt;
   else if(throttle<-.05)v-=(v>0?CAR.brake:CAR.accel*CAR.reverse)*(-throttle)*dt;
   else v-=Math.sign(v)*Math.min(Math.abs(v),CAR.coast*dt);
-  v=Math.max(-CAR.maxReverse,Math.min(maxF,v));
+  // Above the current limit (boost released) the car decelerates at brake rate instead of snapping 16 m/s in one tick.
+  if(v>maxF)v=Math.max(maxF,v-CAR.brake*dt);
+  v=Math.max(-CAR.maxReverse,v);
   // Heading convention: forward = (-sin h, -cos h). Increasing h turns left, so D (x=+1) decreases it.
   if(Math.abs(steer)>.05&&Math.abs(v)>.5)car.heading-=steer*CAR.turn*dt*Math.min(1,Math.abs(v)/18)*Math.sign(v);
+  car.heading=Math.atan2(Math.sin(car.heading),Math.cos(car.heading)); // keep the angle bounded: saves, presence and lerps all rely on it
   const fx=-Math.sin(car.heading),fz=-Math.cos(car.heading),step=v*dt,n=Math.max(1,Math.ceil(Math.abs(step)/.8));
   let hit=false;
   for(let i=0;i<n;i++){const nx=car.x+fx*step/n,nz=car.z+fz*step/n;if(canWalk(nx,nz)){car.x=nx;car.z=nz;}else{hit=true;break;}}

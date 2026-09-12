@@ -125,7 +125,8 @@ test('presence: players see nearby players only, entries expire, logout removes 
   const ua=await service.authenticate(a.result.token),ub=await service.authenticate(b.result.token),uc=await service.authenticate(c.result.token);
   await service.presenceUpdate(ua,{x:10,z:20,heading:1});
   const far=await service.presenceUpdate(uc,{x:2000,z:2000,heading:0});assert.equal(far.players.length,0);assert.equal(far.online,2);
-  const near=await service.presenceUpdate(ub,{x:30,z:25,heading:0,driving:true});
+  const spun=await service.presenceUpdate(ua,{x:10,z:20,heading:12.5});assert.equal(spun.players.length,0,'a many-times-wrapped heading is accepted');
+  const near=await service.presenceUpdate(ub,{x:30,z:25,heading:0,driving:true});assert.ok(Math.abs(near.players[0].heading-Math.atan2(Math.sin(12.5),Math.cos(12.5)))<1e-9,'heading stored wrapped');
   assert.deepEqual(near.players.map(p=>p.name),[ua.name]);assert.equal(near.online,3);
   await assert.rejects(service.presenceUpdate(ub,{x:'nope',z:0}),e=>e.code==='INVALID_INPUT');
   await service.logout(ua);const after=await service.presenceUpdate(ub,{x:30,z:25,heading:0});assert.equal(after.players.length,0);

@@ -388,3 +388,25 @@ kbd{display:inline-block;font:700 10px inherit;padding:4px 6px;border:1px solid 
 .speed-hud.boost{color:var(--yellow)}
 
 .online-button.on{border-color:var(--green);box-shadow:0 0 0 2px #36d67355}
+
+/* Touch devices of any width (phones in landscape, tablets): on-screen controls, no page zoom or scroll on the canvas. */
+@media(pointer:coarse),(hover:none){
+  .touch-controls{display:flex;gap:10px;align-items:end}.controls-hint{display:none}
+  .dpad{display:grid;grid-template-columns:44px 44px 44px;gap:4px}
+  .dpad button,#touch-sprint{width:44px;height:44px;border:1px solid #ffffff33;border-radius:50%;background:#0f203dcc;font-size:15px;touch-action:none;user-select:none;color:#fff}
+  .dpad button:first-child{grid-column:2}.dpad button:nth-child(2){grid-column:1;grid-row:2}.dpad button:nth-child(3){grid-column:2;grid-row:2}.dpad button:nth-child(4){grid-column:3;grid-row:2}
+  #touch-sprint{width:52px;height:52px;font-size:10px;font-weight:900;background:var(--yellow);color:var(--dark);border:0}
+}
+#world{touch-action:none}html,body{touch-action:manipulation;overscroll-behavior:none;-webkit-touch-callout:none}
+/* Notch and home-indicator safe areas (viewport-fit=cover). */
+.topbar{top:calc(16px + env(safe-area-inset-top,0px));left:calc(20px + env(safe-area-inset-left,0px));right:calc(20px + env(safe-area-inset-right,0px))}
+.rail{bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+.left-stack{left:calc(20px + env(safe-area-inset-left,0px));bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+.right-stack{right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+@media(max-width:800px){
+  .topbar{top:calc(10px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px))}
+  .rail{bottom:calc(12px + env(safe-area-inset-bottom,0px));left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px))}
+  .left-stack{left:calc(12px + env(safe-area-inset-left,0px))}.right-stack{right:calc(12px + env(safe-area-inset-right,0px))}
+}
+/* Phone in landscape: little height, so the story and nearby cards give way to the road. */
+@media(max-height:480px) and (pointer:coarse){.story-card,.nearby-card,.place-name{display:none}.minimap-wrap{width:150px}.minimap-wrap canvas{height:100px!important}.left-stack,.right-stack{bottom:calc(84px + env(safe-area-inset-bottom,0px))}.bottom-center{top:auto;bottom:88px}}

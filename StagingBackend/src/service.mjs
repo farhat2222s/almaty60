@@ -69,7 +69,7 @@ export function createService(pool,config){
   const presence=new Map();const PRESENCE_TTL=15000,PRESENCE_RADIUS=400;
   async function presenceUpdate(user,body={}){
     requireRole(user,'player');await rate(`presence:${user.id}`,120);
-    const x=number(body.x,'x',-10000,10000),z=number(body.z,'z',-10000,10000),heading=number(body.heading??0,'heading',-10,10);
+    const x=number(body.x,'x',-10000,10000),z=number(body.z,'z',-10000,10000),rawHeading=number(body.heading??0,'heading',-1e6,1e6),heading=Math.atan2(Math.sin(rawHeading),Math.cos(rawHeading)); // any finite angle, stored wrapped to (-π, π]
     const now=Date.now();presence.set(user.id,{id:user.id,name:user.name,x,z,heading,driving:body.driving===true,updatedAt:now});
     const players=[];for(const [id,p] of presence){if(now-p.updatedAt>PRESENCE_TTL){presence.delete(id);continue;}if(id===user.id)continue;if(Math.hypot(p.x-x,p.z-z)<=PRESENCE_RADIUS)players.push({id:p.id,name:p.name,x:p.x,z:p.z,heading:p.heading,driving:p.driving,age:now-p.updatedAt});}
     return {players,online:presence.size,radius:PRESENCE_RADIUS,demo:true};
@@ -85,7 +85,8 @@ export function createService(pool,config){
     for(const a of rows)await expireAttempt(db,a,now);
     await db.query("UPDATE rewards SET status='EXPIRED' WHERE status='AVAILABLE' AND expires_at<=clock_timestamp()");
     await db.query("DELETE FROM rate_limits WHERE window_start<clock_timestamp()-interval '2 days'");
-    await db.query("DELETE FROM sessions WHERE expires_at<clock_timestamp()-interval '7 days'");return rows.length;
+    await db.query("DELETE FROM sessions WHERE expires_at<clock_timestamp()-interval '7 days'");
+    await db.query("DELETE FROM audit_events WHERE type='request_rejected' AND created_at<clock_timestamp()-interval '7 days'");return rows.length;
   });}
   async function rewardView(db,reward,includeToken=false){
     if(reward.status==='AVAILABLE'&&new Date(reward.expires_at).getTime()<=await dbNow(db)){

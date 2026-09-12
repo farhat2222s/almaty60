@@ -58,7 +58,8 @@ export function createHttpServer({pool,service,allowedOrigins=[],trustProxy=fals
       const status=error.status||500,code=error.status?error.code:'INTERNAL_ERROR';
       // Never log request bodies, passwords, bearer tokens, database URLs or coupon codes.
       if(status>=500)console.error(JSON.stringify({requestId,error:'request_failed',dbCode:typeof error.code==='string'?error.code:undefined}));
-      if(user&&[400,403,409,429].includes(status))try{await service.audit(pool,user.id,'request_rejected',null,{requestId,code});}catch{}
+      // Rate-limited (429) and malformed presence pings are not audited: they arrive at up to 30/min per tab and would grow the table without bound.
+      if(user&&[400,403,409].includes(status)&&!(status===400&&req.url?.startsWith('/api/presence')))try{await service.audit(pool,user.id,'request_rejected',null,{requestId,code});}catch{}
       if(!res.headersSent)send(res,status,{error:code,message:error.status?error.message:'Service temporarily unavailable',requestId},status===429?{'Retry-After':'60'}:{});else res.end();
     }
   });

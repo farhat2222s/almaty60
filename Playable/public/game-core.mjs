@@ -2,9 +2,10 @@
 // No Node imports here: this file must run unchanged in the browser.
 import {WORLD as DEFAULT_WORLD, CAR_ENTER_RADIUS, SPEEDS, WORLD_VERSION} from './world-data.mjs';
 import {simulateCar} from './vehicle.mjs';
+import {courierAt, CHASE} from './chase.mjs';
 
 const DURATIONS = new Set([15,30,45,60,90,120]);
-const TYPES = new Set(['collect','checkpoint','delivery','reaction','race']);
+const TYPES = new Set(['collect','checkpoint','delivery','reaction','race','chase']);
 const SYMBOLS = ['↑','→','↓','←'];
 const QUESTS = {
   aida:{title:'Знакомство с Алматы',description:'Откройте любые три достопримечательности и вернитесь к Аиде.',total:3,xp:200,coins:100},
@@ -53,10 +54,12 @@ export function createGameCore(options={}){
     if(state.player.driving===undefined)state.player.driving=null;
     if(state.worldVersion!==WORLD_VERSION){
       // Grid-city saves: keep progress, rewards and campaigns; move every place to the real-street world.
+      // v2 → v3 keeps the same OSM streets: only the cars and the mission list change, so the player stays where they are.
+      const sameStreets=state.worldVersion===2;
       const templates=new Map(INITIAL_MISSIONS.map(m=>[m.id,m]));
-      state.missions=state.missions.map(m=>{const t=templates.get(m.id)||INITIAL_MISSIONS.find(x=>x.brandId===m.brandId&&x.type===m.type)||INITIAL_MISSIONS.find(x=>x.type===m.type);return t?{...m,start:clone(t.start),targets:clone(t.targets)}:m;});
+      state.missions=state.missions.map(m=>{const t=templates.get(m.id)||INITIAL_MISSIONS.find(x=>x.brandId===m.brandId&&x.type===m.type)||INITIAL_MISSIONS.find(x=>x.type===m.type);return t?{...m,start:clone(t.start),targets:clone(t.targets),...(t.route?{route:clone(t.route),courierSpeed:t.courierSpeed}:{})}:m;});
       for(const m of INITIAL_MISSIONS)if(!state.missions.some(x=>x.id===m.id))state.missions.push(clone(m));
-      state.cars=clone(CARS);state.player.driving=null;state.player.vehicle=false;state.player.position={...SPAWN};
+      state.cars=clone(CARS);state.player.driving=null;state.player.vehicle=false;if(!sameStreets)state.player.position={...SPAWN};
       if(state.activeAttempt){state.activeAttempt.status='failed';state.activeAttempt.reason='world_changed';state.lastAttempt=clone(state.activeAttempt);state.activeAttempt=null;}
       state.worldVersion=WORLD_VERSION;
     }
@@ -65,6 +68,7 @@ export function createGameCore(options={}){
   }
   let lastInputMono=mono();
   let attemptEndMono=null;
+  let chaseLastMono=null;
   let reactionReadyMono=null;
   let inputSinceSave=0;
   let pendingSave=false;
@@ -124,6 +128,7 @@ export function createGameCore(options={}){
       grant(mission.xp,mission.coins);state.player.stats.wins++;
       achievement('first-win','Первая победа');
       if(mission.type==='race')achievement('racer','Гонщик');
+      if(mission.type==='chase')achievement('hunter','Охотник');
       if(state.player.stats.wins>=3)achievement('challenger','Три истории побед');
       const campaign=campaignFor(mission);
       // Only one active local attempt; issuance and persistence occur in one synchronous transaction.
@@ -143,7 +148,19 @@ export function createGameCore(options={}){
   if(state.activeAttempt)finish(false,'server_restarted');
   function tick(){
     expireRewards();
+    updateChase();
     if(state.activeAttempt && mono()>=attemptEndMono)finish(false,'timeout');
+  }
+  function updateChase(){
+    // The courier's position is a pure function of elapsed time on its route; contact time accumulates while the player is close.
+    const a=state.activeAttempt;if(!a||a.type!=='chase'||!a.chase||!Array.isArray(a.route))return;
+    const m=mono(),dt=Math.min(.5,Math.max(0,(m-(chaseLastMono??m))/1000));chaseLastMono=m;
+    const elapsed=Math.max(0,Math.min(a.duration,(m-(attemptEndMono-a.duration*1000))/1000))||0;
+    const c=courierAt(a.route,elapsed,a.chase.speed);
+    a.chase.courier={x:c.x,z:c.z,heading:c.heading};a.chase.elapsed=elapsed;a.chase.done=c.done;
+    const near=distance(state.player.position,c)<=CHASE.catchRadius;
+    a.chase.contact=near?a.chase.contact+dt:Math.max(0,a.chase.contact-dt);
+    if(a.chase.contact>=a.chase.needed&&a.progress<1){a.progress=1;finish(true,'courier_caught');}
   }
   function inspectWorld(){
     const p=state.player;
@@ -161,7 +178,7 @@ export function createGameCore(options={}){
     if(p.discovered.length===LANDMARKS.length)achievement('city-expert','Знаток Алматы');
     updateQuests();
     const a=state.activeAttempt;
-    if(a && a.type!=='reaction'){
+    if(a && a.type!=='reaction' && a.type!=='chase'){
       if(a.type==='collect'){
         for(const t of a.targets)if(!t.done&&distance(p.position,t)<=4.5){t.done=true;a.progress++;dirty();}
       }else{
@@ -179,7 +196,8 @@ export function createGameCore(options={}){
       if(a.reaction)a.reaction.cue=mono()>=reactionReadyMono?'go':'wait';
     }
     const missions=state.missions.map(m=>{
-      const c=campaignFor(m);return {...clone(m),active:campaignOpen(m),rewardsRemaining:Math.max(0,(c?.maxRewards??m.maxRewards??500)-campaignIssued(m.campaignId))};
+      // Chase routes stay server-side until a chase starts (the attempt carries its own copy).
+      const c=campaignFor(m),{route,...rest}=clone(m);return {...rest,active:campaignOpen(m),rewardsRemaining:Math.max(0,(c?.maxRewards??m.maxRewards??500)-campaignIssued(m.campaignId))};
     });
     return {player:clone(state.player),missions,brands:clone(BRANDS),landmarks:clone(LANDMARKS),npcs:NPCS.map(n=>({...n,quest:{...QUESTS[n.id],id:n.id,progress:Math.min(QUESTS[n.id].total,questProgress(n.id))}})),rewards:clone(state.rewards),history:clone(state.history.slice(0,200)),cars:clone(state.cars),activeAttempt:a,lastAttempt:clone(state.lastAttempt||null),campaigns:clone(state.campaigns),serverNow:now(),demo:true};
   }
@@ -193,9 +211,10 @@ export function createGameCore(options={}){
     const old={...state.player.position},position=state.player.position;
     if(car){
       // Arcade car: throttle/steer from the same input vector; collisions bounce and add damage.
-      const before={x:car.x,z:car.z};simulateCar(car,{x,z,sprint:!!body.sprint},dt,canWalk);
-      position.x=car.x;position.z=car.z;car.odometer=(car.odometer||0)+distance(before,car);
-      const steps=Math.max(1,Math.ceil(distance(before,car)/4));for(let i=0;i<steps;i++)inspectWorld();
+      // Slice the tick so every ~4 m of travel is inspected: targets (4.5 m) and apples (3 m) cannot be skipped at 64 m/s.
+      const before={x:car.x,z:car.z},carInput={x,z,sprint:!!body.sprint},slices=Math.max(1,Math.ceil(Math.abs(car.speed||0)*dt/4));
+      for(let i=0;i<slices;i++){simulateCar(car,carInput,dt/slices,canWalk);position.x=car.x;position.z=car.z;inspectWorld();}
+      car.odometer=(car.odometer||0)+distance(before,car);
       state.player.stats.distance+=distance(old,position);dirty();if(++inputSinceSave>=30)persist();return;
     }
     const speed=state.player.vehicle?SPEEDS.scooter:body.sprint?SPEEDS.sprint:SPEEDS.walk;
@@ -230,10 +249,12 @@ export function createGameCore(options={}){
     if(!campaignOpen(mission))reject(409,'CAMPAIGN_CLOSED','Кампания сейчас недоступна.');
     const campaign=campaignFor(mission);
     if(campaignIssued(mission.campaignId)>=(campaign?.maxRewards??mission.maxRewards??500))reject(409,'REWARD_LIMIT','Демонстрационные награды этой кампании закончились.');
-    if(mission.type!=='reaction'&&distance(state.player.position,mission.start)>(mission.type==='race'?22:14))reject(409,'TOO_FAR','Подойдите к брендовой точке в игровом мире.');
+    if(mission.type==='chase'&&!state.player.driving)reject(409,'NEED_CAR','Погоня начинается за рулём: сядь в ближайшую машину и подъезжай к старту.');
+    if(mission.type!=='reaction'&&distance(state.player.position,mission.start)>(mission.type==='race'||mission.type==='chase'?CHASE.startRadius:14))reject(409,'TOO_FAR','Подойдите к брендовой точке в игровом мире.');
     const previous=state.history.find(h=>h.type==='mission_won'&&h.missionId===id);
     if(previous && now()-Date.parse(previous.at)<10_000)reject(429,'COOLDOWN','Следующая попытка станет доступна через 10 секунд после победы.');
-    const a={id:randomUUID(),missionId:mission.id,type:mission.type,status:'active',startedAt:iso(),expiresAt:iso(now()+mission.duration*1000),duration:mission.duration,targets:mission.targets.map(t=>({...t,done:false})),progress:0,total:mission.type==='reaction'?8:mission.targets.length,errors:0,reaction:null};
+    const a={id:randomUUID(),missionId:mission.id,type:mission.type,status:'active',startedAt:iso(),expiresAt:iso(now()+mission.duration*1000),duration:mission.duration,targets:mission.targets.map(t=>({...t,done:false})),progress:0,total:mission.type==='reaction'?8:mission.type==='chase'?1:mission.targets.length,errors:0,reaction:null};
+    if(a.type==='chase'){a.route=clone(mission.route||[]);const c=courierAt(a.route,0);a.chase={contact:0,needed:CHASE.holdSeconds,speed:mission.courierSpeed||CHASE.speed,elapsed:0,done:false,courier:{x:c.x,z:c.z,heading:c.heading}};chaseLastMono=mono();}
     state.activeAttempt=a;attemptEndMono=mono()+mission.duration*1000;
     if(a.type==='reaction')newReaction(a);
     state.player.stats.attempts++;event('start',mission.id,{attemptId:a.id});record('mission_started',{attemptId:a.id,missionId:a.missionId,title:mission.title});dirty();

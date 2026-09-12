@@ -16,7 +16,7 @@ jobs:
           node-version: 24
       - name: Server rules and HTTP boundary
         working-directory: Playable
-        run: node --test tests/server.test.mjs
+        run: node --test tests/*.test.mjs
       - name: Visual/geometry checks (CPU)
         working-directory: Playable
         run: |

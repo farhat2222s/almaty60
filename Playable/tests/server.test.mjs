@@ -65,7 +65,7 @@ function throwsCode(fn,code){assert.throws(fn,error=>error.error===code);}
 
 test('new local game exposes 20 missions and empty real activity',()=>{
   const f=fixture(),s=f.get(),a=f.game.handle('GET','/api/analytics');
-  assert.equal(s.demo,true);assert.equal(s.missions.length,25);assert.equal(s.brands.length,5);
+  assert.equal(s.demo,true);assert.equal(s.missions.length,30);assert.equal(s.brands.length,5);
   assert.equal(s.player.level,1);assert.equal(s.rewards.length,0);assert.equal(a.starts,0);assert.equal(a.uniquePlayers,0);
 });
 
@@ -211,7 +211,7 @@ test('inventory purchases debit once, cannot overspend, and persist selected equ
 test('driving: enter a nearby car only, car speed applies, the car follows and stays where the player leaves it',()=>{
   const f=fixture();
   throwsCode(()=>f.post('/api/car'),'NO_CAR');
-  assert.equal(f.get().cars.length,12);
+  assert.equal(f.get().cars.length,WORLD.cars.length);assert.ok(WORLD.cars.length>=13,'brand and spawn cars exist');
   const spot=WORLD.cars[1];f.walkTo(spot.x,spot.z);
   let s=f.post('/api/car');assert.equal(s.player.driving,'car-1');assert.equal(s.player.vehicle,false);
   assert.ok(s.player.achievements.some(a=>a.id==='driver'));
